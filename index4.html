@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KMLナビ｜KMLの線どおりにだけ案内する特車向けナビ｜rigvant</title>
+<meta name="description" content="KMLナビは、KMLに描いたルートの線どおりにだけ音声で案内するブラウザ用ナビです。勝手にルートを引き直さず、外れたらすぐ警告。特殊車両の許可経路のように、決めた道を走りたい運転に。無料・インストール不要。">
+<meta name="theme-color" content="#020a1c">
+<meta property="og:title" content="KMLナビ｜KMLの線どおりにだけ案内する特車向けナビ">
+<meta property="og:description" content="KMLの線どおりにだけ案内。勝手にリルートしない、外れたらすぐ警告。無料・インストール不要。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b4aa2'/%3E%3Cpath d='M24 54V30h18' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M38 20l12 10-12 10z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/*
+VOICE: plain and practical, written for working drivers; short sentences, large type.
+IDEA: a Japanese road guide sign — blue boards, white letters, one clear arrow.
+PICTURE: the phone itself, showing "300 m先 右折" over a map with the permitted route drawn in.
+COLOUR and TYPE: rigvant night navy, guide-sign blue, white, caution yellow only for lane memos; BIZ UDPGothic.
+LAYOUT: navy hero with title, buttons and phone; white sections for points, steps, caution, FAQ; navy footer.
+*/
+:root{color-scheme:light dark;--night:#020a1c;--sign:#0b4aa2;--sign2:#1d5fc4;--bg:light-dark(#ffffff,#0b1220);--soft:light-dark(#eef2f7,#121c2e);--ink:light-dark(#101521,#e8edf5);--sub:light-dark(#475066,#a9b4c6);--line:light-dark(#d8dee8,#25324a);--warn:light-dark(#8a1d12,#ff9b8a);--memo:#ffd84d}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.75 "BIZ UDPGothic",-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;overflow-x:clip}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 max(5vw,18px)}
+.top{background:var(--night);color:#fff;overflow:hidden}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:20px}
+.brand small{font-weight:400;font-size:13px;color:#a9b8d6}
+.mark{width:34px;height:34px;flex:none}
+.links{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.links a{text-decoration:none;font-size:15px;padding:10px 12px;border-radius:10px;color:#dfe7f6}
+.links a:hover{background:rgba(255,255,255,.08)}
+.links a.open{background:#fff;color:var(--night);font-weight:700}
+@media (max-width:640px){.links a.hide{display:none}}
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:clamp(24px,5vw,64px);align-items:center;padding-top:clamp(28px,6vw,72px);padding-bottom:clamp(36px,6vw,80px)}
+.tag{display:inline-flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;padding:0;list-style:none}
+.tag li{font-size:13.5px;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;color:#dfe7f6}
+h1{font-size:clamp(34px,5.2vw,52px);line-height:1.15;margin:0 0 18px;letter-spacing:.01em;text-wrap:balance}
+.lede{font-size:clamp(16.5px,1.6vw,18.5px);color:#cdd8ec;margin:0 0 26px;max-width:34em}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:54px;padding:0 24px;border-radius:12px;font-weight:700;font-size:17px;text-decoration:none;border:2px solid transparent}
+.btn.main{background:var(--sign2);color:#fff}
+.btn.main:hover{background:#2a6fd8}
+.btn.ghost{border-color:rgba(255,255,255,.45);color:#fff}
+.btn.ghost:hover{background:rgba(255,255,255,.08)}
+.btn:focus-visible,.links a:focus-visible,summary:focus-visible{outline:3px solid #ffb400;outline-offset:3px}
+.note{font-size:13.5px;color:#a9b8d6;margin:14px 0 0}
+.fig{display:flex;justify-content:center}
+.fig svg{width:min(300px,78vw);height:auto;filter:drop-shadow(0 24px 40px rgba(0,0,0,.45))}
+@media (max-width:860px){.hero{grid-template-columns:minmax(0,1fr)}.fig{order:2}}
+section.band{padding:clamp(40px,6vw,80px) 0}
+section.alt{background:var(--soft)}
+h2{font-size:clamp(26px,3.2vw,34px);line-height:1.25;margin:0 0 10px;text-wrap:balance}
+.intro{color:var(--sub);margin:0 0 30px;max-width:40em}
+.pts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,3vw,36px)}
+@media (max-width:820px){.pts{grid-template-columns:minmax(0,1fr)}}
+.pt svg{width:56px;height:56px;margin-bottom:10px}
+.pt h3{font-size:20px;margin:0 0 6px;line-height:1.35}
+.pt p{margin:0;color:var(--sub)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:s}
+.steps li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:16px;padding:18px 0;border-top:1px solid var(--line)}
+.steps li:last-child{border-bottom:1px solid var(--line)}
+.steps li::before{counter-increment:s;content:counter(s);width:44px;height:44px;border-radius:10px;background:var(--sign);color:#fff;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center}
+.steps h3{margin:0 0 4px;font-size:18.5px;line-height:1.4}
+.steps p{margin:0;color:var(--sub)}
+.caution{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:start;border:2px solid var(--warn);border-radius:14px;padding:22px clamp(16px,3vw,28px)}
+.caution svg{width:44px;height:44px}
+.caution h2{font-size:24px;color:var(--warn)}
+.caution ul{margin:8px 0 0;padding-left:1.2em}
+.caution li{margin:4px 0}
+.faq details{border-top:1px solid var(--line);padding:4px 0}
+.faq details:last-child{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;font-weight:700;font-size:17.5px;padding:14px 36px 14px 0;position:relative;min-height:44px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"＋";position:absolute;right:4px;top:12px;color:var(--sign2);font-size:20px}
+.faq details[open] summary::after{content:"－"}
+.faq p{margin:0 0 16px;color:var(--sub)}
+.endcta{text-align:center}
+.endcta .cta{justify-content:center}
+.endcta .btn.ghost{border-color:var(--line);color:var(--ink)}
+footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
+.foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.foot nav{display:flex;flex-wrap:wrap;gap:4px 18px}
+.foot a{color:#dfe7f6}
+@media (prefers-reduced-motion:no-preference){.fig .blink{animation:bl 1.6s ease-in-out infinite}@keyframes bl{50%{opacity:.35}}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="./" aria-label="KMLナビ トップ">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b4aa2"/><path d="M24 54V30h18" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 20l12 10-12 10z" fill="#fff"/></svg>
+      <span>KMLナビ <small>by rigvant</small></span>
+    </a>
+    <nav class="links" aria-label="ページ内">
+      <a class="hide" href="#how">使い方</a>
+      <a class="hide" href="#faq">よくある質問</a>
+      <a class="open" href="app.html">ナビを開く</a>
+    </nav>
+  </div>
+  <div class="wrap hero">
+    <div>
+      <ul class="tag"><li>無料版</li><li>インストール不要</li><li>iPhone・Android</li></ul>
+      <h1>KMLの線どおりにだけ、案内する。</h1>
+      <p class="lede">特殊車両の許可経路のように、決めた道から外れたくない運転のためのナビです。ルートメーカーなどで作ったKMLを開くだけ。勝手にルートを引き直さず、外れたらすぐに知らせます。</p>
+      <div class="cta">
+        <a class="btn main" href="app.html">無料でナビを開く</a>
+        <a class="btn ghost" href="#how">使い方を見る</a>
+      </div>
+      <p class="note">ブラウザで動きます。KMLファイルはスマホの中で読むだけで、どこにも送りません。</p>
+    </div>
+    <div class="fig">
+      <svg viewBox="0 0 300 600" role="img" aria-label="ナビの画面。上に「300m先 右折」と3車線の案内、地図に青いルートの線">
+        <rect x="6" y="6" width="288" height="588" rx="42" fill="#0f1626" stroke="#2a3550" stroke-width="3"/>
+        <rect x="18" y="18" width="264" height="564" rx="32" fill="#e9edf2"/>
+        <clipPath id="sc"><rect x="18" y="18" width="264" height="564" rx="32"/></clipPath>
+        <g clip-path="url(#sc)">
+          <g stroke="#ffffff" stroke-width="16" stroke-linecap="round">
+            <path d="M18 330 H282"/><path d="M18 452 H282"/><path d="M200 160 V582"/><path d="M92 210 V582"/>
+          </g>
+          <g stroke="#d3dae4" stroke-width="5" stroke-linecap="round">
+            <path d="M18 250 H120"/><path d="M150 400 H282"/><path d="M40 520 H160"/>
+          </g>
+          <rect x="112" y="350" width="70" height="80" rx="6" fill="#dfe5ec"/><rect x="214" y="352" width="56" height="84" rx="6" fill="#dfe5ec"/><rect x="28" y="350" width="50" height="86" rx="6" fill="#dfe5ec"/>
+          <path d="M92 582 V452 H200 V330 H282" fill="none" stroke="#fff" stroke-width="20" stroke-linejoin="round"/>
+          <path d="M92 582 V520" fill="none" stroke="#9aa1ab" stroke-width="11" stroke-linecap="round"/>
+          <path d="M92 520 V452 H200 V330 H282" fill="none" stroke="#1546c8" stroke-width="11" stroke-linejoin="round"/>
+          <g transform="translate(92 506)"><circle r="15" fill="#fff" stroke="#111318" stroke-width="2.5"/><path d="M0 -10 L8 9 L0 4 L-8 9 Z" fill="#111318"/></g>
+          <rect x="18" y="18" width="264" height="190" fill="#0b4aa2"/>
+          <path d="M46 132 V92 H82" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M78 78 L98 92 L78 106 Z" fill="#fff"/>
+          <text x="114" y="96" fill="#fff" font-size="34" font-weight="700" font-family="BIZ UDPGothic, sans-serif">300 m先</text>
+          <text x="114" y="128" fill="#fff" font-size="21" font-weight="700" font-family="BIZ UDPGothic, sans-serif">右折</text>
+          <g transform="translate(40 146)">
+            <rect width="40" height="36" rx="6" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="2"/>
+            <rect x="46" width="40" height="36" rx="6" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="2"/>
+            <rect x="92" width="40" height="36" rx="6" fill="#fff"/>
+            <path d="M20 28 V10 M14 15 L20 9 L26 15" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M66 28 V10 M60 15 L66 9 L72 15" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M106 28 V14 H120 M115 9 L121 14 L115 19" fill="none" stroke="#0b4aa2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <rect x="182" y="148" width="86" height="30" rx="7" fill="#ffd84d"/>
+          <text x="225" y="169" text-anchor="middle" fill="#3b2c00" font-size="14" font-weight="700" font-family="BIZ UDPGothic, sans-serif">〇〇交差点</text>
+          <g class="blink"><circle cx="92" cy="452" r="9" fill="#fff" stroke="#1546c8" stroke-width="3"/></g>
+          <rect x="18" y="520" width="264" height="62" fill="#fff"/>
+          <text x="38" y="545" fill="#4b5260" font-size="12" font-family="BIZ UDPGothic, sans-serif">残り</text>
+          <text x="38" y="568" fill="#111318" font-size="20" font-weight="700" font-family="BIZ UDPGothic, sans-serif">12.4 km</text>
+          <text x="138" y="545" fill="#4b5260" font-size="12" font-family="BIZ UDPGothic, sans-serif">速度</text>
+          <text x="138" y="568" fill="#111318" font-size="20" font-weight="700" font-family="BIZ UDPGothic, sans-serif">32 km/h</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="band" aria-labelledby="p">
+  <div class="wrap">
+    <h2 id="p">普通のナビと、ここが違います</h2>
+    <p class="intro">普通のカーナビは、道を外れると別の道を探し直します。KMLナビは、あなたが決めた線だけを正解にします。</p>
+    <div class="pts">
+      <div class="pt">
+        <svg viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="12" fill="#0b4aa2"/><path d="M16 44 V28 C16 22 20 18 26 18 H40" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M36 11 L45 18 L36 25 Z" fill="#fff"/></svg>
+        <h3>線どおりにだけ案内</h3>
+        <p>KMLの線をそのまま「正解のルート」にします。案内中にルートを計算し直すことはありません。</p>
+      </div>
+      <div class="pt">
+        <svg viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="12" fill="#c4161c"/><path d="M28 12 L46 43 H10 Z" fill="none" stroke="#fff" stroke-width="4.5" stroke-linejoin="round"/><path d="M28 24 V33" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="28" cy="38.5" r="2.6" fill="#fff"/></svg>
+        <h3>外れたらすぐ警告</h3>
+        <p>線から外れると、画面が赤くなり、警告音と声で知らせます。勝手に別の道へ連れて行くことはしません。</p>
+      </div>
+      <div class="pt">
+        <svg viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="12" fill="#0b4aa2"/><rect x="8" y="14" width="12" height="28" rx="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2.5"/><rect x="22" y="14" width="12" height="28" rx="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2.5"/><rect x="36" y="14" width="12" height="28" rx="3" fill="#fff"/><path d="M40 36 V25 H45 M43 22 L46 25 L43 28" fill="none" stroke="#0b4aa2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>交差点ごとの車線メモ</h3>
+        <p>曲がり角ごとに「3車線・右から1番目」や交差点名を設定できます。手前で絵と声で教えてくれます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band alt" id="how" aria-labelledby="h">
+  <div class="wrap">
+    <h2 id="h">使い方</h2>
+    <p class="intro">登録もインストールもいりません。スマホのブラウザで開くだけです。</p>
+    <ol class="steps">
+      <li><div><h3>KMLを用意する</h3><p>ルートメーカーなどでルートを作り、KMLで書き出して「ファイル」に保存します。道路の形どおりの線（LineString）が入ったKMLが必要です。地点（ピン）だけのKMLでは案内できません。</p></div></li>
+      <li><div><h3>ナビで開く</h3><p>「ナビを開く」→「KMLファイルを開く」で選びます。地図に線と地点、曲がり角の数が出ます。一度開いたルートは、次から「前回のルート」ですぐ開けます。</p></div></li>
+      <li><div><h3>車線とメモを設定する（任意）</h3><p>「曲がり角と車線の設定」で、曲がり角ごとに車線の数と通る車線、交差点名などを設定します。設定はその端末に保存され、同じKMLを開くと自動で読み込みます。</p></div></li>
+      <li><div><h3>デモ走行で確かめる</h3><p>「デモ走行で試す」で、ルート上を自動で走らせて案内の出方を確認できます。「次の曲がり角へ」「わざと外れる」で、曲がり角の案内や警告も試せます。</p></div></li>
+      <li><div><h3>GPSで走る</h3><p>マナーモードを解除し、充電しながら、ホルダーに固定して使います。「GPSで案内を始める」を押して位置情報を許可すると、線に乗ったところから案内が始まります。</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="c">
+  <div class="wrap">
+    <div class="caution">
+      <svg viewBox="0 0 56 56" aria-hidden="true"><path d="M28 6 L52 48 H4 Z" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round" style="color:var(--warn)"/><path d="M28 21 V33" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" style="color:var(--warn)"/><circle cx="28" cy="40" r="2.8" fill="currentColor" style="color:var(--warn)"/></svg>
+      <div>
+        <h2 id="c">特殊車両で使う方へ</h2>
+        <ul>
+          <li>KMLナビは運転の補助です。通る道は、必ず許可証と現地の標識で確認してください。</li>
+          <li>ナビはKMLの線に忠実に案内します。KMLの線が許可経路どおりかは、ルートを作るときに確認してください。</li>
+          <li>曲がる場所は線の形から読み取るため、ゆるい分かれ道では案内が出ないことがあります。</li>
+          <li>運転中に画面を操作しないでください。ルートから外れたときは、安全な場所に止まってから確認してください。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band alt" id="faq" aria-labelledby="f">
+  <div class="wrap faq">
+    <h2 id="f">よくある質問</h2>
+    <details><summary>料金はかかりますか？</summary><p>無料版は、登録なしで無料で使えます。通信料はお使いのスマホの契約にしたがってかかります。</p></details>
+    <details><summary>どんなKMLが使えますか？</summary><p>道路の形どおりの線（LineString）が入ったKMLです。ルートメーカーで書き出したKMLで動作を確認しています。KMZ（圧縮した形式）には対応していません。</p></details>
+    <details><summary>KMLや設定はどこに保存されますか？</summary><p>KMLはスマホのブラウザの中で読み込むだけで、サーバーには送りません。「前回のルート」と車線の設定は、その端末のブラウザに保存されます。別の端末やブラウザには引き継がれません。</p></details>
+    <details><summary>案内中に画面は消えませんか？</summary><p>対応しているブラウザでは、案内中は画面が消えないようにしています。別のアプリに切り替えると解除されるので、戻ったときに自動でかけ直します。念のため、端末の自動ロックをオフにしておくと確実です。</p></details>
+    <details><summary>車線の数は自動で出ますか？</summary><p>自動では出ません。KMLには車線の情報が入っていないため、曲がり角ごとに自分で設定します。一度設定すれば、同じルートでずっと使えます。</p></details>
+    <details><summary>どの地図を使っていますか？</summary><p>国土地理院の地図（地理院タイル）とOpenStreetMapです。右上の「地図切替」で切り替えられます。</p></details>
+    <details><summary>Androidでも使えますか？</summary><p>使えます。iPhoneはSafari、AndroidはChromeでの利用をおすすめします。</p></details>
+  </div>
+</section>
+
+<section class="band endcta" aria-labelledby="e">
+  <div class="wrap">
+    <h2 id="e">まずはデモ走行で試してみてください</h2>
+    <p class="intro" style="margin-left:auto;margin-right:auto">手元のKMLを開いて「デモ走行で試す」を押すだけで、案内の出方を確かめられます。</p>
+    <div class="cta">
+      <a class="btn main" href="app.html">無料でナビを開く</a>
+      <a class="btn ghost" href="https://rigvant.com/">旋回軌跡チェッカー（rigvant）</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>運営：<a href="https://rigvant.com/">rigvant</a><br>重量物の運搬・据付の計画に使う道具</div>
+    <nav aria-label="フッター">
+      <a href="app.html">ナビを開く</a>
+      <a href="https://rigvant.com/legal/privacy.html">プライバシーポリシー</a>
+      <a href="https://rigvant.com/legal/terms.html">利用規約</a>
+      <a href="https://rigvant.com/">お問い合わせ</a>
+    </nav>
+  </div>
+  <div class="wrap" style="margin-top:18px;font-size:12.5px;color:#8d9bb8">地図：地理院タイル（国土地理院）／ © OpenStreetMap contributors</div>
+</footer>
+</body>
+</html>
