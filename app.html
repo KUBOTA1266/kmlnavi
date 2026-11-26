@@ -12,7 +12,18 @@
 :root{--sign:#0b4aa2;--sign-d:#083a80;--danger:#c4161c;--ink:#111318;--sub:#4b5260;--line:#d9dde3;--bg:#ffffff;--soft:#f2f4f7;--safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;min-width:0}
 html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;color:var(--ink);background:#e9ecef;-webkit-text-size-adjust:100%}
+#mapWrap{position:fixed;inset:0;overflow:hidden;z-index:0;contain:strict}
 #map{position:absolute;inset:0;background:#e9ecef;z-index:0}
+body.rot #map{right:auto;bottom:auto;transform-origin:50% 50%;will-change:transform}
+#puck{position:absolute;left:0;top:0;z-index:400;width:48px;height:48px;margin:-24px 0 0 -24px;pointer-events:none;will-change:transform;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+#compass{bottom:calc(var(--barh,150px) + 68px);width:52px;height:52px;min-height:52px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center}
+#compassN{will-change:transform}
+#attrBox{position:absolute;left:0;top:calc(var(--safe-t));z-index:999;max-width:70%}
+body.navon #attrBox{top:var(--navh,140px)}
+#attrBox .leaflet-control-attribution{background:rgba(255,255,255,.8);margin:0;padding:0 5px;font-size:11px;line-height:1.5;color:#333}
+#attrBox .leaflet-control-attribution a{color:#0078a8;text-decoration:none}
+#arrow.zoomed{width:116px;height:116px}
+.navrow.zoomed{grid-template-columns:116px minmax(0,1fr)}
 button,select{font:inherit;color:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:54px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);font-size:17px;font-weight:600;padding:0 16px}
@@ -112,7 +123,9 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
 </style>
 </head>
 <body>
-<div id="map" role="application" aria-label="地図"></div>
+<div id="mapWrap"><div id="map" role="application" aria-label="地図"></div></div>
+<div id="puck" hidden aria-hidden="true"><svg viewBox="0 0 48 48" width="48" height="48"><circle cx="24" cy="24" r="21" fill="#fff" stroke="rgba(0,0,0,.25)" stroke-width="1.5"/><path d="M24 8 L36 36 L24 29.5 L12 36 Z" fill="#1546c8" stroke="#0b2f8f" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+<div id="attrBox"></div>
 <div id="maperr" hidden>地図を読み込めませんでした。電波を確認してください（案内は線だけでも動きます）。</div>
 
 <header id="nav" class="nav" hidden aria-live="polite">
@@ -211,6 +224,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
 <div id="zoom" hidden></div>
 <button id="layerBtn" class="fab">地図切替</button>
 <button id="recenter" class="fab" hidden>現在地に戻る</button>
+<button id="compass" class="fab" hidden aria-label="地図の向きを切り替え（進行方向が上／北が上）"><svg id="compassN" viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><path d="M20 4 L26 20 L14 20 Z" fill="#d42020"/><path d="M20 36 L26 20 L14 20 Z" fill="#9aa1ab"/><text x="20" y="17" font-size="8" font-weight="700" text-anchor="middle" fill="#fff">N</text></svg></button>
 <div id="toast" hidden role="status"></div>
 <input id="file" type="file" hidden>
 
@@ -592,7 +606,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   var KEY = 'kmlnavi.last';
   var S = {
     route: null, turns: [], map: null, L: {}, tiles: [], tileIdx: 0,
-    mode: 'idle', watch: null, demo: null, voice: true, follow: true,
+    mode: 'idle', watch: null, demo: null, voice: true, follow: true, anim: null, headUp: true,
     lastFix: null, lastAlarm: 0, lastOffSay: 0, wake: null, ac: null,
     startS: 0, arrived: false, voiceJa: null,
     osm: { state: 'idle', clusters: [] }, osmReq: 0, sigS: []
@@ -620,10 +634,12 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     ];
     S.map = L.map('map', { zoomControl: false, preferCanvas: true, attributionControl: false }).setView([36.06, 136.22], 9);
     S.attr = L.control.attribution({ position: 'topleft' }).addTo(S.map);
+    try { if (S.attr.getContainer && $('attrBox')) $('attrBox').appendChild(S.attr.getContainer()); } catch (e) {}
     S.map.on('zoomend', sigVis);
     S.tiles.forEach(function (t) { t.layer.on('tileerror', function () { if (!S.tileWarned) { S.tileWarned = true; $('maperr').textContent = '地図の画像を読み込めませんでした。電波を確認してください（案内は線だけでも動きます）。'; show('maperr', true); setTimeout(function () { show('maperr', false); }, 6000); } }); });
     S.tiles[0].layer.addTo(S.map);
-    S.map.on('dragstart', function () { if (navOn()) { S.follow = false; show('recenter', true); } });
+    S.map.on('dragstart', function () { if (navOn()) unfollow(); });
+    $('map').addEventListener('touchstart', function () { if (navOn() && S.follow) unfollow(); }, { passive: true });
   }
   function nextTiles() {
     if (!S.map) return;
@@ -1011,8 +1027,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     var lh = laneHTML(m, n.dir, 'ln');
     $('lanes').innerHTML = lh; show('lanes', !!lh);
     $('note').textContent = m && m.note ? m.note : ''; show('note', !!(m && m.note));
-    if (n.dist <= 500) { $('zoom').innerHTML = turnSVG(S.turns[n.idx], S.matcher ? S.matcher.s : null, 150); show('zoom', true); }
-    else show('zoom', false);
+    show('zoom', false);
   }
 
   /* ---------- turn list & editor ---------- */
@@ -1110,7 +1125,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     setPanel({ wait: true });
     speak(kind === 'demo' ? 'デモ走行を開始します' : '案内を開始します');
     wake();
-    if (S.map) S.map.setZoom(16);
+    animStart();
     if (kind === 'gps') {
       if (!navigator.geolocation) { toast('この端末では位置情報が使えません'); return; }
       S.watch = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
@@ -1121,6 +1136,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     if (S.demo) { clearInterval(S.demo.timer); S.demo = null; }
     if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch (e) {}
     unwake();
+    animStop();
     if (S.L.me) { S.map.removeLayer(S.L.me); S.L.me = null; }
     if (S.L.gap) { S.map.removeLayer(S.L.gap); S.L.gap = null; }
     if (S.L.done) S.L.done.setLatLngs([]);
@@ -1163,22 +1179,13 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     var r = S.route;
     var hd = (fix.heading != null && isFinite(fix.heading) && spd > 2) ? fix.heading : (mr.near ? r.brg[Math.min(mr.near.i, r.brg.length - 1)] : 0);
     if (S.map) {
-      var ll = [fix.lat, fix.lon];
-      if (!S.L.me) S.L.me = L.marker(ll, { icon: arrowIcon(hd), interactive: false, zIndexOffset: 1000 }).addTo(S.map);
-      else { S.L.me.setLatLng(ll); S.L.me.setIcon(arrowIcon(hd)); }
-      if (mr.s != null && !mr.approach) {
-        var k = 0, pts = r.pts, done = [];
-        while (k < pts.length && pts[k].s <= mr.s) { done.push([pts[k].lat, pts[k].lon]); k++; }
-        var cp = KN.pointAt(r, mr.s); done.push([cp.lat, cp.lon]);
-        S.L.done.setLatLngs(done);
-      }
       if ((mr.off || mr.approach) && mr.near) {
         var seg = [[fix.lat, fix.lon], [mr.near.lat, mr.near.lon]];
         if (S.L.gap) S.map.removeLayer(S.L.gap);
         S.L.gap = L.polyline(seg, { color: mr.off ? '#d42020' : '#1546c8', weight: 4, dashArray: '6 8', interactive: false }).addTo(S.map);
       } else if (S.L.gap) { S.map.removeLayer(S.L.gap); S.L.gap = null; }
-      if (S.follow) S.map.panTo(ll, { animate: true, duration: 0.6 });
     }
+    animPush(fix, mr, hd, fix.vAnim != null ? fix.vAnim : spd);
     if (mr.approach) {
       setPanel({ wait: true, msg: 'ルートまで ' + fmt(mr.d) + '。線に近づくと案内を始めます' });
       $('remain').textContent = fmt(r.total - (S.matcher.minS || 0));
@@ -1188,6 +1195,132 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     setPanel({ mr: mr, gr: gr });
     $('remain').textContent = fmt(gr.remain);
     $('speed').textContent = Math.round(spd * 3.6) + ' km/h';
+  }
+  /* ---------- smooth camera: 60fps vehicle + map follow (heading-up) ---------- */
+  var raf = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : function (f) { return setTimeout(function () { f(Date.now()); }, 16); };
+  var caf = window.cancelAnimationFrame ? window.cancelAnimationFrame.bind(window) : clearTimeout;
+  function animS() { var a = S.anim; return a && a.mode === 'route' && a.s != null ? a.s : null; }
+  function angTo(a, b, k) { var d = ((b - a + 540) % 360) - 180; return (a + d * k + 360) % 360; }
+  function sizeMap() {
+    var el = $('map'), wr = $('mapWrap'), vw = wr.clientWidth || window.innerWidth, vh = wr.clientHeight || window.innerHeight, D = Math.ceil(Math.sqrt(vw * vw + vh * vh)) + 4;
+    el.style.width = D + 'px'; el.style.height = D + 'px';
+    el.style.left = Math.round((vw - D) / 2) + 'px'; el.style.top = Math.round((vh - D) / 2) + 'px';
+    if (S.map && S.map.invalidateSize) S.map.invalidateSize({ pan: false });
+  }
+  function animStart() {
+    try { S.headUp = localStorage.getItem('kmlnavi.headup') !== '0'; } catch (e) {}
+    document.body.classList.add('rot'); sizeMap();
+    S.anim = { mode: null, s: null, sFix: null, tFix: 0, v: 0, lat: null, lon: null, tLat: null, tLon: null, hd: 0, hdT: 0, cam: 0,
+      last: 0, t10: 0, tMove: 0, tBox: 0, zAt: 0, inited: false, done: null, dk: 0, doneS: 0, box: null };
+    show('compass', true);
+    window.addEventListener('resize', sizeMap);
+    S.anim.raf = raf(frame);
+  }
+  function animStop() {
+    var a = S.anim; if (!a) return;
+    caf(a.raf); S.anim = null;
+    window.removeEventListener('resize', sizeMap);
+    document.body.classList.remove('rot');
+    var el = $('map'); el.style.transform = ''; el.style.width = el.style.height = el.style.left = el.style.top = '';
+    show('puck', false); show('compass', false);
+    if (S.map && S.map.invalidateSize) S.map.invalidateSize({ pan: false });
+  }
+  function unfollow() {
+    S.follow = false; show('recenter', true);
+    if (S.anim) { S.anim.cam = 0; $('map').style.transform = 'rotate(0deg)'; }
+  }
+  // a new fix: where the car really is (on the line = route position, otherwise raw GPS)
+  function animPush(fix, mr, hd, v) {
+    var a = S.anim; if (!a) return;
+    var now = Date.now();
+    if (mr.s != null && !mr.approach && !mr.off) {
+      if (a.mode !== 'route' || a.s == null || Math.abs(mr.s - a.s) > 250) a.s = mr.s;
+      a.mode = 'route'; a.sFix = mr.s; a.tFix = now; a.v = Math.max(0, v || 0);
+    } else {
+      if (a.mode !== 'raw' || a.lat == null) { a.lat = fix.lat; a.lon = fix.lon; }
+      a.mode = 'raw'; a.tLat = fix.lat; a.tLon = fix.lon; a.hdT = hd || 0; a.v = 0;
+    }
+  }
+  function frame(t) {
+    var a = S.anim; if (!a) return;
+    a.raf = raf(frame);
+    var r = S.route; if (!r || !a.mode) return;
+    var now = Date.now(), dt = a.last ? Math.min(0.25, (now - a.last) / 1000) : 0.016; a.last = now;
+    var lat, lon;
+    if (a.mode === 'route') {
+      var tgt = Math.min(r.total, a.sFix + a.v * Math.min(1.6, (now - a.tFix) / 1000)), dl = tgt - a.s;
+      if (Math.abs(dl) > 250) a.s = tgt;
+      else if (dl > 0) a.s += dl * (1 - Math.exp(-dt / 0.3));
+      else if (dl < -25) a.s += dl * (1 - Math.exp(-dt / 0.6));   // small overshoot: just wait for the target
+      var p = KN.pointAt(r, a.s); lat = p.lat; lon = p.lon;
+      a.hdT = KN.bearing(KN.pointAt(r, Math.max(0, a.s - 6)), KN.pointAt(r, Math.min(r.total, a.s + 12)));
+    } else {
+      var k = 1 - Math.exp(-dt / 0.35);
+      a.lat += (a.tLat - a.lat) * k; a.lon += (a.tLon - a.lon) * k; lat = a.lat; lon = a.lon;
+    }
+    a.hd = angTo(a.hd, a.hdT, 1 - Math.exp(-dt / 0.25));
+    if (S.follow) a.cam = S.headUp ? angTo(a.cam, a.hd, 1 - Math.exp(-dt / 0.5)) : angTo(a.cam, 0, 1 - Math.exp(-dt / 0.3));
+    var mapEl = $('map');
+    mapEl.style.transform = 'rotate(' + (-a.cam).toFixed(2) + 'deg)';
+    $('compassN').style.transform = 'rotate(' + (-a.cam).toFixed(1) + 'deg)';
+    if (!S.map || !S.map.latLngToContainerPoint) return;
+    // where on the screen the car sits: lower part of the map area between the blue panel and the bottom bar
+    if (!a.box || now - a.tBox > 500) {
+      var nb = $('nav').getBoundingClientRect(), bb = $('bar').getBoundingClientRect(), mb = mapEl.getBoundingClientRect();
+      var top = $('nav').hidden ? 0 : nb.bottom, bot = $('bar').hidden ? window.innerHeight : bb.top;
+      var wb = $('mapWrap').getBoundingClientRect();
+      a.box = { x: wb.left + wb.width / 2, y: top + (bot - top) * 0.72, cx: mb.left + mb.width / 2, cy: mb.top + mb.height / 2 };
+      a.tBox = now;
+    }
+    var ll = [lat, lon];
+    if (!a.inited) { S.map.setView(ll, 16, { animate: false }); a.inited = true; }
+    var puck = $('puck');
+    if (S.follow && !S.map._animatingZoom) {
+      var sz = S.map.getSize(), th = a.cam * Math.PI / 180, sx = a.box.x - a.box.cx, sy = a.box.y - a.box.cy;
+      var px = sz.x / 2 + sx * Math.cos(th) - sy * Math.sin(th), py = sz.y / 2 + sx * Math.sin(th) + sy * Math.cos(th);
+      var cp = S.map.latLngToContainerPoint(ll), ox = cp.x - px, oy = cp.y - py;
+      if (Math.abs(ox) > 1500 || Math.abs(oy) > 1500) { S.map.setView(ll, S.map.getZoom(), { animate: false }); }
+      else if (Math.abs(ox) > 0.05 || Math.abs(oy) > 0.05) {
+        if (S.map._rawPanBy) { S.map._rawPanBy(L.point(ox, oy)); S.map.fire('move'); }
+        else S.map.panBy([ox, oy], { animate: false });
+      }
+      if (now - a.tMove > 300) { S.map.fire('moveend'); a.tMove = now; }
+      puck.style.transform = 'translate(' + a.box.x.toFixed(1) + 'px,' + a.box.y.toFixed(1) + 'px) rotate(' + (a.hd - a.cam).toFixed(1) + 'deg)';
+      if (puck.hidden) show('puck', true);
+      if (S.L.me && S.L.me.setOpacity) S.L.me.setOpacity(0);
+      // zoom: closer near a turn, wider when fast
+      var nd = S.pn != null && animS() != null ? S.turns[S.pn].s - animS() : 1e9;
+      var zT = a.mode !== 'route' ? 16 : nd < 350 ? 17 : a.v > 22 ? 15 : 16;
+      if (zT !== S.map.getZoom() && now - a.zAt > 2500) { a.zAt = now; S.map.setZoomAround(L.point(px, py), zT, { animate: true }); }
+    } else if (!S.follow) {
+      if (!puck.hidden) show('puck', false);
+      if (!S.L.me) S.L.me = L.marker(ll, { icon: arrowIcon(a.hd), interactive: false, zIndexOffset: 1000 }).addTo(S.map);
+      if (now - a.t10 > 100) { S.L.me.setLatLng(ll); S.L.me.setIcon(arrowIcon(a.hd)); if (S.L.me.setOpacity) S.L.me.setOpacity(1); }
+    }
+    if (now - a.t10 > 100) {   // 10x per second: travelled line, distance, close-up
+      a.t10 = now;
+      var sd = animS();
+      if (sd != null && S.L.done) {
+        var P = r.pts;
+        if (!a.done || sd < a.doneS - 1) { a.done = []; a.dk = 0; }
+        while (a.dk < P.length && P[a.dk].s <= sd) { a.done.push([P[a.dk].lat, P[a.dk].lon]); a.dk++; }
+        a.doneS = sd;
+        S.L.done.setLatLngs(a.done.concat([ll]));
+      }
+      if (sd != null && S.pn != null && !$('nav').classList.contains('off')) {
+        var dd = S.turns[S.pn].s - sd;
+        $('dist').textContent = fmt(Math.max(0, dd)) + '先';
+        panelArrow(S.pn, dd, sd);
+        $('remain').textContent = fmt(Math.max(0, r.total - sd));
+      }
+    }
+  }
+  // the big arrow becomes the close-up of the intersection from 500 m before the turn
+  function zoomCls(on) { var el = $('arrow'); el.classList.toggle('zoomed', on); if (el.parentNode) el.parentNode.classList.toggle('zoomed', on); }
+  function panelArrow(k, dd, sd, force) {
+    var el = $('arrow'), t = S.turns[k];
+    if (dd <= 500) { zoomCls(true); el.innerHTML = turnSVG(t, sd != null ? sd : (S.matcher ? S.matcher.s : null), 116); }
+    else if (force || el.classList.contains('zoomed')) { zoomCls(false); el.innerHTML = arrowSVG(t.deg, false); }
   }
   function arrowSVG(deg, straight, color, size) {
     color = color || '#fff'; size = size || 76;
@@ -1201,6 +1334,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     var nav = $('nav');
     if (o.wait) {
       nav.className = 'nav wait';
+      zoomCls(false); S.pn = null;
       $('arrow').innerHTML = '<div class="spin"></div>';
       $('dist').textContent = '';
       $('dirText').textContent = o.msg || '現在地を探しています…';
@@ -1211,6 +1345,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     var mr = o.mr, gr = o.gr;
     if (mr.off) {
       nav.className = 'nav off';
+      zoomCls(false); S.pn = null;
       $('arrow').innerHTML = '<svg viewBox="0 0 100 100" width="76" height="76" aria-hidden="true"><path d="M50 12 L92 86 L8 86 Z" fill="none" stroke="#fff" stroke-width="9" stroke-linejoin="round"/><path d="M50 40 L50 62" stroke="#fff" stroke-width="9" stroke-linecap="round"/><circle cx="50" cy="75" r="5" fill="#fff"/></svg>';
       $('dist').textContent = fmt(mr.d);
       $('dirText').textContent = 'ルートから外れています';
@@ -1222,12 +1357,15 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     show('resync', false);
     nav.className = 'nav';
     var n = gr.next;
+    S.pn = n ? n.idx : null;
     if (n) {
-      $('arrow').innerHTML = arrowSVG(S.turns[n.idx].deg, false);
-      $('dist').textContent = fmt(Math.max(0, n.dist)) + '先';
+      var sd = animS(), dd = sd != null ? S.turns[n.idx].s - sd : n.dist;
+      panelArrow(n.idx, dd, sd, true);
+      $('dist').textContent = fmt(Math.max(0, dd)) + '先';
       $('dirText').textContent = word(n.dir) + (n.chain ? '　→ すぐ' + word(n.chain) : '');
       extras(n);
     } else {
+      zoomCls(false);
       $('arrow').innerHTML = arrowSVG(0, true);
       $('dist').textContent = fmt(gr.remain);
       $('dirText').textContent = '目的地まで、曲がり角はありません';
@@ -1254,7 +1392,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       var perp = (brg + 90) * Math.PI / 180, n1 = (Math.random() - 0.5) * 6, n2 = (Math.random() - 0.5) * 6;
       var lat = P.lat + (off * Math.cos(perp) + n1) / 110540;
       var lon = P.lon + (off * Math.sin(perp) + n2) / (111320 * Math.cos(P.lat * Math.PI / 180));
-      handle({ lat: lat, lon: lon, acc: 8, speed: d.v, heading: brg, t: Date.now() + k * 1000 });
+      handle({ lat: lat, lon: lon, acc: 8, speed: d.v, heading: brg, t: Date.now() + k * 1000, vAnim: d.v * d.mult });
       if (!S.demo || d.s >= r.total) break;
     }
   }
@@ -1277,7 +1415,12 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       this.textContent = S.voice ? '音声オン' : '音声オフ';
       if (!S.voice && 'speechSynthesis' in window) try { speechSynthesis.cancel(); } catch (e) {}
     });
-    $('recenter').addEventListener('click', function () { S.follow = true; show('recenter', false); if (S.lastFix && S.map) S.map.setView([S.lastFix.lat, S.lastFix.lon], Math.max(S.map.getZoom(), 15)); });
+    $('recenter').addEventListener('click', function () { S.follow = true; show('recenter', false); if (S.anim) S.anim.zAt = 0; });
+    $('compass').addEventListener('click', function () {
+      S.headUp = !S.headUp; try { localStorage.setItem('kmlnavi.headup', S.headUp ? '1' : '0'); } catch (e) {}
+      toast(S.headUp ? '進行方向を上にしました' : '北を上にしました');
+      if (!S.follow) { S.follow = true; show('recenter', false); }
+    });
     $('layerBtn').addEventListener('click', nextTiles);
     $('resync').addEventListener('click', function () {
       if (!S.matcher) return; var s0 = S.matcher.s || 0;
