@@ -32,6 +32,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 #results button{display:block;width:100%;text-align:left;border:none;border-bottom:1px solid var(--line);background:#fff;padding:12px 14px;font-size:15px;line-height:1.4}
 #results button:last-child{border-bottom:none}
 #results small{display:block;color:var(--sub);font-size:12.5px}
+#results .err{color:var(--danger);font-weight:700;background:#fff3f3}
 /* panel */
 #panel{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--bg);border-radius:18px 18px 0 0;padding:8px 14px calc(12px + var(--safe-b));box-shadow:0 -6px 24px rgba(0,0,0,.18);max-height:52dvh;overflow:auto}
 .grip{display:block;width:100%;border:none;background:none;padding:4px 0 8px}
@@ -129,7 +130,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     </div>
     <div class="hk">
       <label for="hereKey">HEREのAPIキー（このスマホの中だけに保存します）</label>
-      <div class="hrow"><input id="hereKey" type="password" autocomplete="off" spellcheck="false" placeholder="ここに貼り付け"><button class="chip" id="hereSave">保存</button></div>
+      <div class="hrow"><input id="hereKey" type="password" autocomplete="off" spellcheck="false" placeholder="ここに貼り付け"><button class="chip" id="hereSave">保存</button><button class="chip" id="hereTest">テスト</button></div>
       <p id="hereSt" class="note" style="margin-top:6px"></p>
     </div>
     <div class="grid2">
@@ -910,8 +911,8 @@ function fpDecode(s) {
   var OVP = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
   function rx(t) { return t.replace(/[\\.*+?^${}()|[\]"]/g, '\\$&'); }
   function ovp(q, k) {
-    if (k >= OVP.length) return Promise.reject(new Error('overpass'));
-    var ctl = typeof AbortController === 'function' ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 12000);
+    if (k >= 2) return Promise.reject(new Error('overpass'));
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 9000);
     return fetch(OVP[k], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (j) { clearTimeout(to); if (!j || !Array.isArray(j.elements)) throw new Error('bad'); return j.elements; })
@@ -940,12 +941,22 @@ function fpDecode(s) {
   }
   function hereSearch(q, c) {
     var url = 'https://discover.search.hereapi.com/v1/discover?at=' + c.lat.toFixed(5) + ',' + c.lng.toFixed(5) + '&q=' + encodeURIComponent(q) + '&lang=ja&limit=12&in=countryCode:JPN&apiKey=' + encodeURIComponent(hereKey());
-    return fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) {
+    return fetch(url).then(function (r) {
+      if (r.ok) return r.json();
+      return r.json().catch(function () { return {}; }).then(function (j) { var e = new Error('here'); e.why = hereWhy(r.status, j); throw e; });
+    }, function () { var e = new Error('here'); e.why = 'HEREに接続できませんでした（電波を確認してください）'; throw e; }).then(function (j) {
       return (j.items || []).filter(function (it) { return it.position; }).map(function (it) {
         var cat = it.categories && it.categories[0] && it.categories[0].name;
         return { name: String(it.title || ''), lat: it.position.lat, lon: it.position.lng, kind: cat || (it.address && it.address.city) || '施設', d: it.distance != null ? it.distance : KN.hav({ lat: it.position.lat, lon: it.position.lng }, { lat: c.lat, lon: c.lng }) };
       });
     });
+  }
+  function hereWhy(st, j) {
+    var t = j && (j.title || j.error_description || j.error) ? '：' + (j.title || j.error_description || j.error) : '';
+    if (st === 401) return 'HEREのキーが違うようです（401' + t + '）。キーをコピーし直して、貼り直してください';
+    if (st === 403) return 'HEREがこのキーを受け付けていません（403' + t + '）。HEREのアクセスマネージャで、アプリ「KMLnavi」の「リンク済みのサブスクリプション」を0から1にしてください';
+    if (st === 429) return 'HEREの回数の上限か、混み合っています（429）';
+    return 'HEREでエラーが出ました（' + st + t + '）';
   }
   function gsiSearch(q) {
     return fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (arr) {
@@ -962,10 +973,11 @@ function fpDecode(s) {
       poi.sort(function (a, b) { return a.d - b.d; }).forEach(function (p) { var k = p.name + Math.round(p.lat * 1000) + Math.round(p.lon * 1000); if (!seen[k]) { seen[k] = 1; list.push(p); } });
       list = list.slice(0, 8).concat(gsi);
       var pending = got.poi === null || got.gsi === null;
-      if (!list.length) { box.innerHTML = '<button disabled>' + (pending ? '探しています…' : '見つかりませんでした。地名や「ホテル」など別の言葉でも試してください') + '</button>'; return; }
+      var errLine = got.err ? '<button disabled class="err">' + esc(got.err) + (pending ? '<small>代わりに無料の地図データで探しています…</small>' : '') + '</button>' : '';
+      if (!list.length) { box.innerHTML = errLine + '<button disabled>' + (pending ? '探しています…' : '見つかりませんでした。地名や「ホテル」など別の言葉でも試してください') + '</button>'; return; }
       box.innerHTML = list.map(function (it, k) {
         return '<button data-k="' + k + '">' + esc(it.name) + '<small>' + esc(it.kind) + (it.d != null ? '・ここから' + fmtKm(it.d) : '') + '</small></button>';
-      }).join('') + (pending ? '<button disabled>ほかも探しています…</button>' : '');
+      }).join('') + errLine + (pending ? '<button disabled>ほかも探しています…</button>' : '');
       Array.prototype.forEach.call(box.querySelectorAll('button[data-k]'), function (b) {
         b.addEventListener('click', function () {
           var it = list[+b.getAttribute('data-k')];
@@ -976,7 +988,7 @@ function fpDecode(s) {
       });
     }
     var id = (S.sid = (S.sid || 0) + 1);
-    var poi = hereKey() ? hereSearch(q, c).catch(function () { return poiSearch(q, c); }) : poiSearch(q, c);
+    var poi = hereKey() ? hereSearch(q, c).catch(function (e) { if (id === S.sid) { got.err = e.why || 'HEREで検索できませんでした'; draw(); } return poiSearch(q, c); }) : poiSearch(q, c);
     poi.then(function (r) { if (id === S.sid) { got.poi = r; draw(); } }, function () { if (id === S.sid) { got.poi = []; draw(); } });
     gsiSearch(q).then(function (r) { if (id === S.sid) { got.gsi = r; draw(); } }, function () { if (id === S.sid) { got.gsi = []; draw(); } });
   }
@@ -987,6 +999,17 @@ function fpDecode(s) {
     $('hereKey').value = k;
     $('hereSt').textContent = k ? 'HEREを使用中：施設の検索と、車の大きさに合わせた道なりの線をHEREで計算します。' : 'キー未設定：検索は無料の地図データ、道なりの線は試作用の公開サーバーで計算します（トラックの大きさは考えません）。';
     if (k && S.attr && !S.hereAttr) { S.attr.addAttribution('検索・ルート &copy; <a href="https://www.here.com/" target="_blank" rel="noopener">HERE</a>'); S.hereAttr = true; }
+  }
+  function hereTest() {
+    var k = hereKey(), st = $('hereSt');
+    if (!k) { st.textContent = 'キーが保存されていません。欄に貼り付けて「保存」を押してください。'; return; }
+    st.textContent = 'HEREにつないで確認しています…';
+    fetch('https://discover.search.hereapi.com/v1/discover?at=35.6812,139.7671&q=' + encodeURIComponent('東京駅') + '&limit=1&lang=ja&apiKey=' + encodeURIComponent(k))
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
+      .then(function (x) {
+        if (x.r.ok) { st.textContent = 'OK：HEREにつながりました（' + ((x.j.items && x.j.items[0] && x.j.items[0].title) || '応答あり') + '）。検索と道なりの線はHEREで計算します。'; toast('HEREにつながりました'); }
+        else { st.textContent = hereWhy(x.r.status, x.j); }
+      }, function () { st.textContent = 'HEREに接続できませんでした（電波を確認してください）'; });
   }
   function showDims() {
     var on = S.veh !== 'car'; $('dims').hidden = !on; if (!on) return;
@@ -1002,11 +1025,12 @@ function fpDecode(s) {
     });
     $('undo').addEventListener('click', undo);
     $('hereSave').addEventListener('click', function () {
-      var v = $('hereKey').value.trim();
+      var v = $('hereKey').value.replace(/\s+/g, '');
       try { if (v) localStorage.setItem(HKEY, v); else localStorage.removeItem(HKEY); } catch (e) {}
       hereState(); syncLegs(); rebuild(); save();
-      toast(v ? 'HEREのキーを保存しました。検索とルートがHEREになります' : 'HEREのキーを消しました');
+      if (v) hereTest(); else toast('HEREのキーを消しました');
     });
+    $('hereTest').addEventListener('click', hereTest);
     ['dL', 'dW', 'dH', 'dT'].forEach(function (id) {
       $(id).addEventListener('change', function () {
         var d = { L: +$('dL').value || 0, W: +$('dW').value || 0, H: +$('dH').value || 0, T: +$('dT').value || 0 };
