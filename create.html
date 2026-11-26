@@ -190,7 +190,10 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     var docs = byTag(doc, 'Document');
     var name = docs.length ? textOf(docs[0], 'name') : '';
     var pms = byTag(doc, 'Placemark');
-    var segments = [], stops = [];
+    var segments = [], stops = [], hints = null;
+    // routes made with KMLナビ's route maker carry the real intersection turns
+    var dd = byTag(doc, 'Data');
+    for (var k = 0; k < dd.length; k++) if (dd[k].getAttribute('name') === 'kmlnavi-turns') hints = [];
     for (var i = 0; i < pms.length; i++) {
       var pm = pms[i], pmName = textOf(pm, 'name');
       var lines = byTag(pm, 'LineString');
@@ -202,12 +205,18 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
         var p = byTag(pm, 'Point');
         if (p.length) {
           var c = parseCoords(textOf(p[0], 'coordinates'));
-          if (c.length) stops.push({ name: pmName, lat: c[0].lat, lon: c[0].lon });
+          var kind = '', deg = null, ds = byTag(pm, 'Data');
+          for (var q = 0; q < ds.length; q++) {
+            if (ds[q].getAttribute('name') === 'kmlnavi') kind = textOf(ds[q], 'value');
+            if (ds[q].getAttribute('name') === 'deg') deg = parseFloat(textOf(ds[q], 'value'));
+          }
+          if (kind === 'turn') { if (c.length && isFinite(deg)) { hints = hints || []; hints.push({ lat: c[0].lat, lon: c[0].lon, deg: deg }); } }
+          else if (c.length) stops.push({ name: pmName, lat: c[0].lat, lon: c[0].lon });
         }
       }
     }
     if (!segments.length) throw new Error('このKMLには線（ルート）が入っていません');
-    return { name: name || (segments[0].name || 'ルート'), segments: segments, stops: stops };
+    return { name: name || (segments[0].name || 'ルート'), segments: segments, stops: stops, hints: hints };
   }
 
   function endName(seg, stops, endPt) {
@@ -242,7 +251,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     });
     var brg = [];
     for (var i = 0; i < pts.length - 1; i++) brg.push(bearing(pts[i], pts[i + 1]));
-    return { name: parsed.name, pts: pts, conn: conn, brg: brg, segs: segs, stops: parsed.stops, total: pts[pts.length - 1].s, lat0: lat0, lon0: lon0, kx: kx, ky: ky };
+    return { name: parsed.name, pts: pts, conn: conn, brg: brg, segs: segs, stops: parsed.stops, hints: parsed.hints || null, total: pts[pts.length - 1].s, lat0: lat0, lon0: lon0, kx: kx, ky: ky };
   }
 
   function idxAt(r, s) {
@@ -267,6 +276,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
 
   function detectTurns(r) {
+    if (r.hints) return hintTurns(r);
     var cand = [];
     for (var i = 1; i < r.pts.length - 1; i++) {
       var P = r.pts[i], s = P.s, sg = r.segs[P.seg];
@@ -289,6 +299,27 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     return out.map(function (c) { return { s: c.s, deg: Math.round(c.d), dir: label(c.d), lat: r.pts[c.i].lat, lon: r.pts[c.i].lon, seg: r.pts[c.i].seg }; });
   }
 
+  // turns given in the KML: put each on the route, in driving order
+  function hintTurns(r) {
+    var out = [], lastS = -1e9;
+    r.hints.forEach(function (h) {
+      var best = null;
+      for (var i = 0; i < r.pts.length - 1; i++) {
+        var a = r.pts[i], b = r.pts[i + 1];
+        if (b.s < lastS - 10 || r.conn[i]) continue;
+        var p = project(r, h), dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+        var t = L2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+        var qx = a.x + dx * t - p.x, qy = a.y + dy * t - p.y, d = Math.sqrt(qx * qx + qy * qy);
+        if (d <= 30 && (!best || d < best.d - 0.5)) best = { d: d, s: a.s + (b.s - a.s) * t, i: i };
+        else if (best && a.s > best.s + 200) break;    // the first close pass is the one we drive
+      }
+      if (!best) return;
+      lastS = best.s;
+      var P = pointAt(r, best.s);
+      out.push({ s: best.s, deg: Math.round(h.deg), dir: label(h.deg), lat: P.lat, lon: P.lon, seg: r.pts[best.i].seg });
+    });
+    return out;
+  }
   function project(r, fix) {
     return { x: (fix.lon - r.lon0) * r.kx, y: (fix.lat - r.lat0) * r.ky };
   }
@@ -528,8 +559,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   // what the road lines are calculated for; a change re-draws the road lines
   function profile() {
     if (!hereKey()) return 'osrm';
-    if (S.veh === 'car') return 'here-car';
-    var d = dims(); return 'here-truck-' + S.veh + '-' + [d.L, d.W, d.H, d.T].join('-');
+    if (S.veh === 'car') return 'here2-car';
+    var d = dims(); return 'here2-truck-' + S.veh + '-' + [d.L, d.W, d.H, d.T].join('-');
   }
 var ENC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 function fpDecode(s) {
@@ -614,9 +645,9 @@ function fpDecode(s) {
     if (!leg) { runQueue(); return; }
     S.busy = 1; $('busy').hidden = false;
     var c = key.split(','), prof = c[4].split('|')[1] || 'osrm';
-    var done = function (ll, why, warn, man) {
+    var done = function (ll, why, warn, man, narrow) {
       S.busy = 0;
-      S.legs.forEach(function (l) { if (l.key === key) { if (ll) { l.ll = ll; l.state = 'ok'; l.warn = warn || ''; l.man = man || []; } else { l.state = 'err'; l.why = why || ''; } } });
+      S.legs.forEach(function (l) { if (l.key === key) { if (ll) { l.ll = ll; l.state = 'ok'; l.warn = warn || ''; l.man = man || []; l.narrow = narrow || []; } else { l.state = 'err'; l.why = why || ''; } } });
       if (!ll) toast(why || '道なりの線を計算できませんでした。点を少し動かすか、直線にしてください');
       else if (warn) toast(warn);
       rebuild(); save();
@@ -642,12 +673,15 @@ function fpDecode(s) {
       }, function () { clearTimeout(to); done(null); });
       return;
     }
-    var truck = prof.indexOf('here-truck') === 0, d = dims();
-    var url = 'https://router.hereapi.com/v8/routes?origin=' + c[0] + ',' + c[1] + '&destination=' + c[2] + ',' + c[3] + '&return=polyline,actions&apiKey=' + encodeURIComponent(hereKey());
-    url += truck ? '&transportMode=truck&vehicle[type]=' + (S.veh === 'trailer' ? 'tractor' : 'straightTruck') + (S.veh === 'trailer' ? '&vehicle[trailerCount]=1' : '') +
+    var truck = /truck/.test(prof), d = dims();
+    var base = 'https://router.hereapi.com/v8/routes?origin=' + c[0] + ',' + c[1] + '&destination=' + c[2] + ',' + c[3] + '&return=polyline,actions&apiKey=' + encodeURIComponent(hereKey());
+    base += truck ? '&transportMode=truck&vehicle[type]=' + (S.veh === 'trailer' ? 'tractor' : 'straightTruck') + (S.veh === 'trailer' ? '&vehicle[trailerCount]=1' : '') +
       '&vehicle[grossWeight]=' + Math.round(d.T * 1000) + '&vehicle[height]=' + Math.round(d.H * 100) + '&vehicle[width]=' + Math.round(d.W * 100) + '&vehicle[length]=' + Math.round(d.L * 100)
       : '&transportMode=car';
-    fetch(url, opt).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: false, status: r.status, j: null }; }); }).then(function (x) {
+    // extras: road class of each stretch, and (for trucks) avoid turns that are hard for big vehicles and U-turns
+    var extra = '&spans=functionalClass' + (truck ? '&avoid[features]=difficultTurns,uTurns' : '');
+    function get(u) { return fetch(u, opt).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: false, status: r.status, j: null }; }); }); }
+    get(base + extra).then(function (x) { return (!x.ok && x.status === 400) ? get(base) : x; }).then(function (x) {
       clearTimeout(to);
       var j = x.j || {};
       if (!x.ok) {
@@ -660,7 +694,7 @@ function fpDecode(s) {
       if (!r0 || !r0.sections || !r0.sections.length) {
         done(null, truck ? 'この車の大きさで通れる道が見つかりませんでした。点の位置を変えてみてください' : 'ルートが見つかりませんでした'); return;
       }
-      var ll = [], warn = '', man = [];
+      var ll = [], warn = '', man = [], narrow = [];
       try {
         r0.sections.forEach(function (sec) {
           var pl = fpDecode(sec.polyline);
@@ -670,12 +704,18 @@ function fpDecode(s) {
             if (ac.direction === 'left' && dg > 0) dg = -dg; if (ac.direction === 'right' && dg < 0) dg = -dg;
             man.push({ lat: pl[ac.offset][0], lon: pl[ac.offset][1], deg: dg });
           });
+          var sp = sec.spans || [];
+          sp.forEach(function (x, k) {   // functional class 5 = the smallest local roads
+            if (!(x.functionalClass >= 5)) return;
+            var a0 = x.offset || 0, a1 = k + 1 < sp.length ? sp[k + 1].offset : pl.length - 1;
+            if (a1 > a0) narrow.push(pl.slice(a0, a1 + 1));
+          });
           pl.forEach(function (q) { var l = ll[ll.length - 1]; if (!l || l[0] !== q[0] || l[1] !== q[1]) ll.push(q); });
           (sec.notices || []).forEach(function (n) { if (n.severity === 'critical' || /violat/i.test(n.code || '')) warn = 'この区間に、車の大きさ・重さの規制にかかる道が含まれている可能性があります'; });
         });
       } catch (e) { done(null, 'HEREの線を読めませんでした'); return; }
       if (ll.length < 2) { done(null); return; }
-      done(ll, '', warn, man);
+      done(ll, '', warn, man, narrow);
     }, function () { clearTimeout(to); done(null, 'HEREに接続できませんでした（電波を確認してください）'); });
   }
   function H(a, b) { return KN.hav({ lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }); }
@@ -736,6 +776,7 @@ function fpDecode(s) {
         var line = L.polyline(l.ll, { color: l.state === 'err' ? '#c4161c' : l.warn ? '#e8730c' : '#1546c8', weight: 6, opacity: l.state === 'wait' ? 0.45 : 1, dashArray: l.state === 'ok' ? null : '8 10', bubblingMouseEvents: false }).addTo(m);
         line.on('click', function (e) { insertOnLeg(i, e.latlng); });
         S.L.legs.push(casing, line);
+        (l.narrow || []).forEach(function (seg) { S.L.legs.push(L.polyline(seg, { color: '#ff8a00', weight: 5, dashArray: '2 9', lineCap: 'round', interactive: false }).addTo(m)); });
       });
       S.pts.forEach(function (p, i) {
         var mk = L.marker([p.lat, p.lon], { icon: pinIcon(i), draggable: true, autoPan: true, zIndexOffset: 500 }).addTo(m);
@@ -837,6 +878,7 @@ function fpDecode(s) {
     S.nCheck = n;
     if (g && m) S.L.marks = g.addTo(m);
   }
+  function narrowM() { var t = 0; S.legs.forEach(function (l) { (l.narrow || []).forEach(function (sg) { t += llDist(sg); }); }); return t; }
   function stats() {
     var line = fullLine(), d = llDist(line), wait = S.legs.some(function (l) { return l.state === 'wait'; });
     $('stDist').textContent = fmtKm(d);
@@ -847,6 +889,7 @@ function fpDecode(s) {
     $('hint').textContent = !S.pts.length ? '地図をタップして、出発地を置いてください。'
       : S.pts.length === 1 ? '次に、通りたい道の先をタップしてください。最後に置いた点が到着地になります。'
       : wait ? '道なりの線を計算しています…'
+      : narrowM() > 30 ? 'オレンジの点線（約' + fmtKm(narrowM()) + '）は、HEREが細い生活道路と判断した区間です。大型車で通れるか確かめるか、点を動かして広い道に変えてください。'
       : '曲がり角の手前で線がずれたら、線をタップして点を足し、ドラッグで道に合わせてください。';
     $('busy').hidden = !S.busy && !S.queue.length;
   }
@@ -861,7 +904,8 @@ function fpDecode(s) {
   function kmlText() {
     var line = fullLine(), name = routeName(), a = S.pts[0], b = S.pts[S.pts.length - 1];
     var segName = ((a && a.name) || '出発地') + ' 〜 ' + ((b && b.name) || '到着地');
-    var x = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>' + esc(name) + '</name>\n';
+    var x = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>' + esc(name) + '</name>\n' +
+      '<ExtendedData><Data name="kmlnavi-turns"><value>1</value></Data></ExtendedData>\n';
     x += '<Placemark><name>' + esc(segName) + '</name><LineString><tessellate>1</tessellate><coordinates>\n' +
       line.map(function (q) { return q[1].toFixed(6) + ',' + q[0].toFixed(6) + ',0'; }).join('\n') + '\n</coordinates></LineString></Placemark>\n';
     S.pts.forEach(function (p, i) {
@@ -870,6 +914,13 @@ function fpDecode(s) {
       var nm = p.name || (i === 0 ? '出発地' : '到着地');
       x += '<Placemark><name>' + esc(nm) + '</name><Point><coordinates>' + p.lon.toFixed(6) + ',' + p.lat.toFixed(6) + ',0</coordinates></Point></Placemark>\n';
     });
+    // the intersection turns from the route service, so the navi announces these and not every bend of the road
+    x += '<Folder><name>曲がり角（KMLナビ用）</name><visibility>0</visibility>\n';
+    (S.turns || []).forEach(function (t) {
+      if (Math.abs(t.deg) < 25) return;
+      x += '<Placemark><name>' + (t.deg > 0 ? '右' : '左') + Math.round(Math.abs(t.deg)) + '°</name><visibility>0</visibility><ExtendedData><Data name="kmlnavi"><value>turn</value></Data><Data name="deg"><value>' + Math.round(t.deg) + '</value></Data></ExtendedData><Point><coordinates>' + t.lon.toFixed(6) + ',' + t.lat.toFixed(6) + ',0</coordinates></Point></Placemark>\n';
+    });
+    x += '</Folder>\n';
     return x + '</Document>\n</kml>\n';
   }
   function fileName() { return routeName().replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) + '.kml'; }
@@ -893,7 +944,7 @@ function fpDecode(s) {
 
   /* ---------- draft ---------- */
   function save() {
-    try { localStorage.setItem(DRAFT, JSON.stringify({ v: 1, name: $('rName').value, pts: S.pts, legs: S.legs.filter(function (l) { return l.state === 'ok'; }).map(function (l) { return { mode: l.mode, key: l.key, ll: l.ll, state: 'ok', man: l.man, warn: l.warn }; }) })); } catch (e) {}
+    try { localStorage.setItem(DRAFT, JSON.stringify({ v: 1, name: $('rName').value, pts: S.pts, legs: S.legs.filter(function (l) { return l.state === 'ok'; }).map(function (l) { return { mode: l.mode, key: l.key, ll: l.ll, state: 'ok', man: l.man, warn: l.warn, narrow: l.narrow }; }) })); } catch (e) {}
   }
   function load() {
     var d = null;
@@ -928,7 +979,7 @@ function fpDecode(s) {
         return els.map(function (e) {
           var lat = e.lat != null ? e.lat : e.center && e.center.lat, lon = e.lon != null ? e.lon : e.center && e.center.lon, tg = e.tags || {};
           if (lat == null || !tg.name) return null;
-          var kind = tg.tourism === 'hotel' ? 'ホテル' : tg.amenity === 'fuel' ? 'ガソリンスタンド' : tg.shop ? '店' : tg.amenity ? '施設' : tg.building || tg.landuse === 'industrial' ? '建物・敷地' : tg.highway ? '道路' : '場所';
+          var kind = tg.power ? '電力設備（変電所など）' : tg.tourism === 'hotel' ? 'ホテル' : tg.amenity === 'fuel' ? 'ガソリンスタンド' : tg.shop ? '店' : tg.amenity ? '施設' : tg.building || tg.landuse === 'industrial' ? '建物・敷地' : tg.highway ? '道路' : '場所';
           return { name: String(tg.name), lat: lat, lon: lon, kind: kind, d: KN.hav({ lat: lat, lon: lon }, { lat: c.lat, lon: c.lng }), road: !!tg.highway };
         }).filter(function (x) { return x && !x.road; });
       });
@@ -963,18 +1014,24 @@ function fpDecode(s) {
       return (arr || []).slice(0, 5).map(function (it) { var c = it.geometry.coordinates; return { name: String(it.properties && it.properties.title || ''), lat: c[1], lon: c[0], kind: '住所・地名' }; });
     });
   }
+  // HERE (shops, hotels, companies) + OpenStreetMap (also substations, factories...) + 国土地理院 (addresses), side by side
   function search(q) {
     var box = $('results'), c = S.map && S.map.getCenter ? S.map.getCenter() : { lat: 36.06, lng: 136.22 };
-    box.hidden = false; box.innerHTML = '<button disabled>探しています…（施設名は少し時間がかかります）</button>';
-    var got = { poi: null, gsi: null };
+    box.hidden = false; box.innerHTML = '<button disabled>探しています…</button>';
+    var useHere = !!hereKey(), got = { here: useHere ? null : [], osm: null, gsi: null, err: '' };
+    var qn = q.replace(/[\s　]+/g, '');
+    function rank(it) { var n = it.name.replace(/[\s　]+/g, ''); return n === qn ? 0 : n.indexOf(qn) >= 0 ? 1 : 2; }
     function draw() {
-      var poi = got.poi || [], gsi = got.gsi || [];
-      var seen = {}, list = [];
-      poi.sort(function (a, b) { return a.d - b.d; }).forEach(function (p) { var k = p.name + Math.round(p.lat * 1000) + Math.round(p.lon * 1000); if (!seen[k]) { seen[k] = 1; list.push(p); } });
-      list = list.slice(0, 8).concat(gsi);
-      var pending = got.poi === null || got.gsi === null;
-      var errLine = got.err ? '<button disabled class="err">' + esc(got.err) + (pending ? '<small>代わりに無料の地図データで探しています…</small>' : '') + '</button>' : '';
-      if (!list.length) { box.innerHTML = errLine + '<button disabled>' + (pending ? '探しています…' : '見つかりませんでした。地名や「ホテル」など別の言葉でも試してください') + '</button>'; return; }
+      var all = (got.here || []).concat(got.osm || []), list = [];
+      all.sort(function (a, b) { return rank(a) - rank(b) || a.d - b.d; });
+      all.forEach(function (p) {
+        if (list.some(function (x) { return KN.hav({ lat: x.lat, lon: x.lon }, { lat: p.lat, lon: p.lon }) < 300 && (x.name.indexOf(p.name) >= 0 || p.name.indexOf(x.name) >= 0); })) return;
+        list.push(p);
+      });
+      list = list.slice(0, 10).concat(got.gsi || []);
+      var pending = got.here === null || got.osm === null || got.gsi === null;
+      var errLine = got.err ? '<button disabled class="err">' + esc(got.err) + '</button>' : '';
+      if (!list.length) { box.innerHTML = errLine + '<button disabled>' + (pending ? '探しています…' : '見つかりませんでした。地図をその地域に動かしてから探すか、別の言葉でも試してください') + '</button>'; return; }
       box.innerHTML = list.map(function (it, k) {
         return '<button data-k="' + k + '">' + esc(it.name) + '<small>' + esc(it.kind) + (it.d != null ? '・ここから' + fmtKm(it.d) : '') + '</small></button>';
       }).join('') + errLine + (pending ? '<button disabled>ほかも探しています…</button>' : '');
@@ -988,9 +1045,10 @@ function fpDecode(s) {
       });
     }
     var id = (S.sid = (S.sid || 0) + 1);
-    var poi = hereKey() ? hereSearch(q, c).catch(function (e) { if (id === S.sid) { got.err = e.why || 'HEREで検索できませんでした'; draw(); } return poiSearch(q, c); }) : poiSearch(q, c);
-    poi.then(function (r) { if (id === S.sid) { got.poi = r; draw(); } }, function () { if (id === S.sid) { got.poi = []; draw(); } });
-    gsiSearch(q).then(function (r) { if (id === S.sid) { got.gsi = r; draw(); } }, function () { if (id === S.sid) { got.gsi = []; draw(); } });
+    function put(k) { return function (r) { if (id === S.sid) { got[k] = r || []; draw(); } }; }
+    if (useHere) hereSearch(q, c).then(put('here'), function (e) { if (id === S.sid) { got.err = e.why || 'HEREで検索できませんでした'; got.here = []; draw(); } });
+    poiSearch(q, c).then(put('osm'), function () { put('osm')([]); });
+    gsiSearch(q).then(put('gsi'), function () { put('gsi')([]); });
   }
 
   /* ---------- wiring ---------- */

@@ -277,7 +277,10 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     var docs = byTag(doc, 'Document');
     var name = docs.length ? textOf(docs[0], 'name') : '';
     var pms = byTag(doc, 'Placemark');
-    var segments = [], stops = [];
+    var segments = [], stops = [], hints = null;
+    // routes made with KMLナビ's route maker carry the real intersection turns
+    var dd = byTag(doc, 'Data');
+    for (var k = 0; k < dd.length; k++) if (dd[k].getAttribute('name') === 'kmlnavi-turns') hints = [];
     for (var i = 0; i < pms.length; i++) {
       var pm = pms[i], pmName = textOf(pm, 'name');
       var lines = byTag(pm, 'LineString');
@@ -289,12 +292,18 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
         var p = byTag(pm, 'Point');
         if (p.length) {
           var c = parseCoords(textOf(p[0], 'coordinates'));
-          if (c.length) stops.push({ name: pmName, lat: c[0].lat, lon: c[0].lon });
+          var kind = '', deg = null, ds = byTag(pm, 'Data');
+          for (var q = 0; q < ds.length; q++) {
+            if (ds[q].getAttribute('name') === 'kmlnavi') kind = textOf(ds[q], 'value');
+            if (ds[q].getAttribute('name') === 'deg') deg = parseFloat(textOf(ds[q], 'value'));
+          }
+          if (kind === 'turn') { if (c.length && isFinite(deg)) { hints = hints || []; hints.push({ lat: c[0].lat, lon: c[0].lon, deg: deg }); } }
+          else if (c.length) stops.push({ name: pmName, lat: c[0].lat, lon: c[0].lon });
         }
       }
     }
     if (!segments.length) throw new Error('このKMLには線（ルート）が入っていません');
-    return { name: name || (segments[0].name || 'ルート'), segments: segments, stops: stops };
+    return { name: name || (segments[0].name || 'ルート'), segments: segments, stops: stops, hints: hints };
   }
 
   function endName(seg, stops, endPt) {
@@ -329,7 +338,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     });
     var brg = [];
     for (var i = 0; i < pts.length - 1; i++) brg.push(bearing(pts[i], pts[i + 1]));
-    return { name: parsed.name, pts: pts, conn: conn, brg: brg, segs: segs, stops: parsed.stops, total: pts[pts.length - 1].s, lat0: lat0, lon0: lon0, kx: kx, ky: ky };
+    return { name: parsed.name, pts: pts, conn: conn, brg: brg, segs: segs, stops: parsed.stops, hints: parsed.hints || null, total: pts[pts.length - 1].s, lat0: lat0, lon0: lon0, kx: kx, ky: ky };
   }
 
   function idxAt(r, s) {
@@ -354,6 +363,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   }
 
   function detectTurns(r) {
+    if (r.hints) return hintTurns(r);
     var cand = [];
     for (var i = 1; i < r.pts.length - 1; i++) {
       var P = r.pts[i], s = P.s, sg = r.segs[P.seg];
@@ -376,6 +386,27 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     return out.map(function (c) { return { s: c.s, deg: Math.round(c.d), dir: label(c.d), lat: r.pts[c.i].lat, lon: r.pts[c.i].lon, seg: r.pts[c.i].seg }; });
   }
 
+  // turns given in the KML: put each on the route, in driving order
+  function hintTurns(r) {
+    var out = [], lastS = -1e9;
+    r.hints.forEach(function (h) {
+      var best = null;
+      for (var i = 0; i < r.pts.length - 1; i++) {
+        var a = r.pts[i], b = r.pts[i + 1];
+        if (b.s < lastS - 10 || r.conn[i]) continue;
+        var p = project(r, h), dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+        var t = L2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+        var qx = a.x + dx * t - p.x, qy = a.y + dy * t - p.y, d = Math.sqrt(qx * qx + qy * qy);
+        if (d <= 30 && (!best || d < best.d - 0.5)) best = { d: d, s: a.s + (b.s - a.s) * t, i: i };
+        else if (best && a.s > best.s + 200) break;    // the first close pass is the one we drive
+      }
+      if (!best) return;
+      lastS = best.s;
+      var P = pointAt(r, best.s);
+      out.push({ s: best.s, deg: Math.round(h.deg), dir: label(h.deg), lat: P.lat, lon: P.lon, seg: r.pts[best.i].seg });
+    });
+    return out;
+  }
   function project(r, fix) {
     return { x: (fix.lon - r.lon0) * r.kx, y: (fix.lat - r.lat0) * r.ky };
   }
