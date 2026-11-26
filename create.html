@@ -49,6 +49,14 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .more{display:none}
 #panel.open .more{display:block}
 .note{font-size:12.5px;color:var(--sub);line-height:1.55;margin:10px 0 0}
+.dims label,.hk label{display:block;font-size:13px;color:var(--sub);margin:4px 0 6px}
+.dgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.dgrid span{display:flex;flex-direction:column;gap:2px}
+.dgrid input{width:100%;min-height:44px;border:1.5px solid var(--line);border-radius:10px;padding:0 8px;font-size:16px;font-variant-numeric:tabular-nums}
+.dgrid small{font-size:12px;color:var(--sub);text-align:center}
+.hk{margin-bottom:10px}
+.hrow{display:flex;gap:8px}
+.hrow input{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:10px;padding:0 10px;font-size:16px}
 /* map things */
 .pin{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#fff;border:3px solid var(--sign);color:var(--sign);font-weight:800;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .pin.s{background:#16a34a;border-color:#fff;color:#fff;width:36px;height:36px;font-size:14px}
@@ -77,7 +85,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 <div id="top">
   <form class="sbox" id="sForm" role="search">
     <a class="back" href="app.html" aria-label="ナビに戻る">‹</a>
-    <input id="q" type="search" placeholder="地名・住所で探す（例：福井駅）" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" placeholder="ホテル名・施設名・住所で探す（例：ルートイン）" autocomplete="off" enterkeyhint="search">
     <button type="submit">検索</button>
   </form>
   <div id="results" hidden></div>
@@ -110,11 +118,25 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       <button class="chip" data-veh="big">大型</button>
       <button class="chip on" data-veh="trailer">トレーラー</button>
     </div>
+    <div id="dims" class="dims" hidden>
+      <label>車の大きさ・重さ（HEREでトラックのルートを出すときに使います）</label>
+      <div class="dgrid">
+        <span><input id="dL" type="number" inputmode="decimal" step="0.1" min="0"><small>全長 m</small></span>
+        <span><input id="dW" type="number" inputmode="decimal" step="0.1" min="0"><small>全幅 m</small></span>
+        <span><input id="dH" type="number" inputmode="decimal" step="0.1" min="0"><small>全高 m</small></span>
+        <span><input id="dT" type="number" inputmode="decimal" step="0.5" min="0"><small>総重量 t</small></span>
+      </div>
+    </div>
+    <div class="hk">
+      <label for="hereKey">HEREのAPIキー（このスマホの中だけに保存します）</label>
+      <div class="hrow"><input id="hereKey" type="password" autocomplete="off" spellcheck="false" placeholder="ここに貼り付け"><button class="chip" id="hereSave">保存</button></div>
+      <p id="hereSt" class="note" style="margin-top:6px"></p>
+    </div>
     <div class="grid2">
       <button class="btn" id="save" disabled>KMLを保存</button>
       <button class="btn" id="clear">全部消す</button>
     </div>
-    <p class="note">点はドラッグで動かせます。線をタップすると、そこに点を足せます。点をタップすると、名前の変更・削除・線の引き方の切り替えができます。<br>オレンジの丸は、車の種類から見て旋回軌跡を確認したほうがよい曲がり角です（目安）。<br>道なりの線は試作のため、公開のルート計算サーバー（OSRM・OpenStreetMap）を使っています。普通車向けの道順なので、特殊車両の許可ルートと必ず照らし合わせてください。</p>
+    <p class="note">点はドラッグで動かせます。線をタップすると、そこに点を足せます。点をタップすると、名前の変更・削除・線の引き方の切り替えができます。<br>オレンジの丸は、車の種類から見て旋回軌跡を確認したほうがよい曲がり角です（目安）。<br>HEREのキーがないときの道なりの線は、試作用の公開サーバー（OSRM・OpenStreetMap）で、普通車向けの道順です。HEREのトラックのルートも、日本の規制データがすべて入っているとは限りません。どちらの場合も、特殊車両の許可ルートと必ず照らし合わせてください。</p>
   </div>
 </section>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -498,6 +520,31 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   var DRAFT = 'kmlnavi.draft', LAST = 'kmlnavi.last', VEH = 'kmlnavi.vehicle';
   var OSRM = 'https://router.project-osrm.org/route/v1/driving/';
   var CHECKER = 'https://rigvant.com/';
+  var HKEY = 'kmlnavi.herekey', DIMS = 'kmlnavi.dims.';
+  var DEF = { big: { L: 12, W: 2.5, H: 3.8, T: 25 }, trailer: { L: 16.5, W: 2.5, H: 3.8, T: 36 } };
+  function hereKey() { try { return (localStorage.getItem(HKEY) || '').trim(); } catch (e) { return ''; } }
+  function dims(v) { v = v || S.veh; var d = null; try { d = JSON.parse(localStorage.getItem(DIMS + v) || 'null'); } catch (e) { d = null; } return d || DEF[v] || DEF.big; }
+  // what the road lines are calculated for; a change re-draws the road lines
+  function profile() {
+    if (!hereKey()) return 'osrm';
+    if (S.veh === 'car') return 'here-car';
+    var d = dims(); return 'here-truck-' + S.veh + '-' + [d.L, d.W, d.H, d.T].join('-');
+  }
+var ENC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function fpDecode(s) {
+  var vals = [], res = 0, sh = 0;
+  for (var i = 0; i < s.length; i++) {
+    var v = ENC.indexOf(s.charAt(i)); if (v < 0) throw new Error('bad polyline');
+    res += (v & 31) * Math.pow(2, sh);
+    if (v & 32) sh += 5; else { vals.push(res); res = 0; sh = 0; }
+  }
+  if (vals[0] !== 1) throw new Error('polyline version');
+  var h = vals[1], f = Math.pow(10, h & 15), step = (Math.floor(h / 16) & 7) ? 3 : 2, out = [], lat = 0, lng = 0;
+  function sg(u) { return u % 2 ? -(u + 1) / 2 : u / 2; }
+  for (var k = 2; k + 1 < vals.length; k += step) { lat += sg(vals[k]); lng += sg(vals[k + 1]); out.push([lat / f, lng / f]); }
+  return out;
+}
+
   // pts: [{lat, lon, name, mode}]  mode = how the line comes INTO this point ('road' | 'line')
   // legs[i]: line from pts[i] to pts[i+1] -> {mode, ll:[[lat,lon]...], state:'ok'|'wait'|'err', key}
   var S = { map: null, pts: [], legs: [], mode: 'road', veh: 'trailer', hist: [], L: { legs: [], pins: [], marks: null }, queue: [], busy: 0, pcAt: 0, turns: [], route: null };
@@ -533,7 +580,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
 
   /* ---------- points & legs ---------- */
-  function legKey(a, b, mode) { return [a.lat.toFixed(6), a.lon.toFixed(6), b.lat.toFixed(6), b.lon.toFixed(6), mode].join(','); }
+  function legKey(a, b, mode) { return [a.lat.toFixed(6), a.lon.toFixed(6), b.lat.toFixed(6), b.lon.toFixed(6), mode === 'line' ? 'line' : 'road|' + profile()].join(','); }
   function addPoint(lat, lon, name, at) {
     pushHist();
     var p = { lat: lat, lon: lon, name: name || '', mode: S.mode };
@@ -545,11 +592,13 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   // keep legs in step with points; reuse a computed line when its two ends and mode are unchanged
   function syncLegs() {
     var old = {}, legs = [], need = [];
-    S.legs.forEach(function (l) { if (l && l.key && l.state === 'ok') old[l.key] = l; });
+    S.cache = S.cache || {};
+    S.legs.forEach(function (l) { if (l && l.key && l.state === 'ok' && (l.man || l.mode === 'line')) { old[l.key] = l; S.cache[l.key] = l; } });
+    for (var k in S.cache) if (!old[k]) old[k] = S.cache[k];
     for (var i = 0; i < S.pts.length - 1; i++) {
       var a = S.pts[i], b = S.pts[i + 1], mode = b.mode || 'road', key = legKey(a, b, mode);
       if (old[key]) legs.push(old[key]);
-      else if (mode === 'line') legs.push({ mode: mode, key: key, ll: [[a.lat, a.lon], [b.lat, b.lon]], state: 'ok' });
+      else if (mode === 'line') legs.push({ mode: mode, key: key, ll: [[a.lat, a.lon], [b.lat, b.lon]], state: 'ok', man: [] });
       else { legs.push({ mode: mode, key: key, ll: [[a.lat, a.lon], [b.lat, b.lon]], state: 'wait' }); need.push(key); }
     }
     S.legs = legs;
@@ -563,27 +612,101 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     S.legs.forEach(function (l) { if (l.key === key && l.state === 'wait') leg = l; });
     if (!leg) { runQueue(); return; }
     S.busy = 1; $('busy').hidden = false;
-    var c = key.split(','), url = OSRM + c[1] + ',' + c[0] + ';' + c[3] + ',' + c[2] + '?overview=full&geometries=geojson&steps=false';
-    var done = function (ll) {
+    var c = key.split(','), prof = c[4].split('|')[1] || 'osrm';
+    var done = function (ll, why, warn, man) {
       S.busy = 0;
-      S.legs.forEach(function (l) { if (l.key === key) { if (ll) { l.ll = ll; l.state = 'ok'; } else { l.state = 'err'; } } });
-      if (!ll) toast('道なりの線を計算できませんでした。点を少し動かすか、直線にしてください');
+      S.legs.forEach(function (l) { if (l.key === key) { if (ll) { l.ll = ll; l.state = 'ok'; l.warn = warn || ''; l.man = man || []; } else { l.state = 'err'; l.why = why || ''; } } });
+      if (!ll) toast(why || '道なりの線を計算できませんでした。点を少し動かすか、直線にしてください');
+      else if (warn) toast(warn);
       rebuild(); save();
-      setTimeout(runQueue, 350);   // be gentle with the shared server
+      setTimeout(runQueue, 350);   // be gentle with the servers
     };
     var ctl = typeof AbortController === 'function' ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 20000);
-    fetch(url, { signal: ctl ? ctl.signal : undefined }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    var opt = { signal: ctl ? ctl.signal : undefined };
+    if (prof === 'osrm') {
+      fetch(OSRM + c[1] + ',' + c[0] + ';' + c[3] + ',' + c[2] + '?overview=full&geometries=geojson&steps=true', opt).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        clearTimeout(to);
+        var g = j && j.code === 'Ok' && j.routes && j.routes[0] && j.routes[0].geometry;
+        if (!g || !g.coordinates || g.coordinates.length < 2) { done(null); return; }
+        var man = [];
+        (j.routes[0].legs || []).forEach(function (lg) {
+          (lg.steps || []).forEach(function (st) {
+            var mv = st.maneuver || {}; if (!mv.location || mv.type === 'depart' || mv.type === 'arrive') return;
+            var dg = ((mv.bearing_after - mv.bearing_before + 540) % 360) - 180;
+            if (mv.modifier === 'uturn') dg = 180;
+            man.push({ lat: mv.location[1], lon: mv.location[0], deg: dg });
+          });
+        });
+        done(g.coordinates.map(function (q) { return [q[1], q[0]]; }), '', '', man);
+      }, function () { clearTimeout(to); done(null); });
+      return;
+    }
+    var truck = prof.indexOf('here-truck') === 0, d = dims();
+    var url = 'https://router.hereapi.com/v8/routes?origin=' + c[0] + ',' + c[1] + '&destination=' + c[2] + ',' + c[3] + '&return=polyline,actions&apiKey=' + encodeURIComponent(hereKey());
+    url += truck ? '&transportMode=truck&vehicle[type]=' + (S.veh === 'trailer' ? 'tractor' : 'straightTruck') + (S.veh === 'trailer' ? '&vehicle[trailerCount]=1' : '') +
+      '&vehicle[grossWeight]=' + Math.round(d.T * 1000) + '&vehicle[height]=' + Math.round(d.H * 100) + '&vehicle[width]=' + Math.round(d.W * 100) + '&vehicle[length]=' + Math.round(d.L * 100)
+      : '&transportMode=car';
+    fetch(url, opt).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: false, status: r.status, j: null }; }); }).then(function (x) {
       clearTimeout(to);
-      var g = j && j.code === 'Ok' && j.routes && j.routes[0] && j.routes[0].geometry;
-      if (!g || !g.coordinates || g.coordinates.length < 2) { done(null); return; }
-      var ll = g.coordinates.map(function (q) { return [q[1], q[0]]; });
-      done(ll);
-    }, function () { clearTimeout(to); done(null); });
+      var j = x.j || {};
+      if (!x.ok) {
+        var why = x.status === 401 || x.status === 403 ? 'HEREのAPIキーが正しくないか、使えない状態です（' + x.status + '）'
+          : x.status === 429 ? 'HEREの無料回数の上限か、混み合っています（429）'
+          : 'HEREでルートを出せませんでした（' + x.status + (j.title ? '：' + j.title : '') + '）';
+        done(null, why); return;
+      }
+      var r0 = j.routes && j.routes[0];
+      if (!r0 || !r0.sections || !r0.sections.length) {
+        done(null, truck ? 'この車の大きさで通れる道が見つかりませんでした。点の位置を変えてみてください' : 'ルートが見つかりませんでした'); return;
+      }
+      var ll = [], warn = '', man = [];
+      try {
+        r0.sections.forEach(function (sec) {
+          var pl = fpDecode(sec.polyline);
+          (sec.actions || []).forEach(function (ac) {
+            if (ac.action === 'depart' || ac.action === 'arrive' || ac.offset == null || !pl[ac.offset]) return;
+            var dg = angleAt(pl, ac.offset);
+            if (ac.direction === 'left' && dg > 0) dg = -dg; if (ac.direction === 'right' && dg < 0) dg = -dg;
+            man.push({ lat: pl[ac.offset][0], lon: pl[ac.offset][1], deg: dg });
+          });
+          pl.forEach(function (q) { var l = ll[ll.length - 1]; if (!l || l[0] !== q[0] || l[1] !== q[1]) ll.push(q); });
+          (sec.notices || []).forEach(function (n) { if (n.severity === 'critical' || /violat/i.test(n.code || '')) warn = 'この区間に、車の大きさ・重さの規制にかかる道が含まれている可能性があります'; });
+        });
+      } catch (e) { done(null, 'HEREの線を読めませんでした'); return; }
+      if (ll.length < 2) { done(null); return; }
+      done(ll, '', warn, man);
+    }, function () { clearTimeout(to); done(null, 'HEREに接続できませんでした（電波を確認してください）'); });
+  }
+  function H(a, b) { return KN.hav({ lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }); }
+  function cum(a) { var c = [0]; for (var i = 1; i < a.length; i++) c.push(c[i - 1] + H(a[i - 1], a[i])); return c; }
+  function at(a, c, d) {   // point d metres along polyline a (cumulative c)
+    if (d <= 0) return a[0]; if (d >= c[c.length - 1]) return a[a.length - 1];
+    var i = 1; while (c[i] < d) i++;
+    var t = (d - c[i - 1]) / ((c[i] - c[i - 1]) || 1); return [a[i - 1][0] + (a[i][0] - a[i - 1][0]) * t, a[i - 1][1] + (a[i][1] - a[i - 1][1]) * t];
+  }
+  function cutTo(a, c, d0, d1) { var out = [at(a, c, d0)]; for (var i = 0; i < a.length; i++) if (c[i] > d0 && c[i] < d1) out.push(a[i]); out.push(at(a, c, d1)); return out; }
+  function brg(p, q) { return KN.bearing({ lat: p[0], lon: p[1] }, { lat: q[0], lon: q[1] }); }
+  function angleAt(a, i) {   // turn angle at vertex i, measured 30 m before and after (+ = right)
+    var c = cum(a), d = c[i], p0 = at(a, c, d - 30), p1 = a[i], p2 = at(a, c, d + 30);
+    if (H(p0, p1) < 5 || H(p1, p2) < 5) return 0;
+    return ((brg(p1, p2) - brg(p0, p1) + 540) % 360) - 180;
+  }
+  // a point placed a little off the road makes the line go in and come straight back: cut that spur off
+  function legsTrimmed() {
+    var L2 = S.legs.map(function (l) { return l.ll.slice(); });
+    S.cuts = S.legs.map(function () { return { s: 0, e: 0 }; });
+    for (var i = 0; i < L2.length - 1; i++) {
+      if (S.legs[i].mode === 'line' || S.legs[i + 1].mode === 'line') continue;
+      var A = L2[i], B = L2[i + 1], ca = cum(A), cb = cum(B), la = ca[ca.length - 1], lb = cb[cb.length - 1], cut = 0;
+      for (var d = 5; d <= Math.min(400, la, lb); d += 5) { if (H(at(A, ca, la - d), at(B, cb, d)) < 14) cut = d; else break; }
+      if (cut >= 10) { L2[i] = cutTo(A, ca, 0, la - cut); L2[i + 1] = cutTo(B, cb, cut, lb); S.cuts[i].e = cut; S.cuts[i + 1].s = cut; }
+    }
+    return L2;
   }
   function fullLine() {
     var out = [];
-    S.legs.forEach(function (l) {
-      l.ll.forEach(function (q, j) {
+    legsTrimmed().forEach(function (ll) {
+      ll.forEach(function (q, j) {
         var last = out[out.length - 1];
         if (j === 0 && last && Math.abs(last[0] - q[0]) < 2e-5 && Math.abs(last[1] - q[1]) < 2e-5) return;
         out.push(q);
@@ -609,7 +732,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       S.L.legs = []; S.L.pins = [];
       S.legs.forEach(function (l, i) {
         var casing = L.polyline(l.ll, { color: '#fff', weight: 10, opacity: 0.9, interactive: false }).addTo(m);
-        var line = L.polyline(l.ll, { color: l.state === 'err' ? '#c4161c' : '#1546c8', weight: 6, opacity: l.state === 'wait' ? 0.45 : 1, dashArray: l.state === 'ok' ? null : '8 10', bubblingMouseEvents: false }).addTo(m);
+        var line = L.polyline(l.ll, { color: l.state === 'err' ? '#c4161c' : l.warn ? '#e8730c' : '#1546c8', weight: 6, opacity: l.state === 'wait' ? 0.45 : 1, dashArray: l.state === 'ok' ? null : '8 10', bubblingMouseEvents: false }).addTo(m);
         line.on('click', function (e) { insertOnLeg(i, e.latlng); });
         S.L.legs.push(casing, line);
       });
@@ -666,18 +789,48 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function analyse() {
     var m = S.map, line = fullLine();
     if (S.L.marks && m) m.removeLayer(S.L.marks);
-    S.L.marks = null; S.turns = []; S.route = null;
-    if (line.length < 2) return;
-    try { S.route = KN.buildRoute(KN.parseKML(kmlText())); S.turns = KN.detectTurns(S.route); } catch (e) { S.route = null; S.turns = []; return; }
+    S.L.marks = null; S.turns = [];
+    if (line.length < 2) { S.nCheck = 0; return; }
+    var c = cum(line), cand = [];
+    var tl = legsTrimmed(), acc = 0;
+    S.legs.forEach(function (l, li) {
+      var cu = S.cuts[li] || { s: 0, e: 0 }, lc = cum(l.ll), len = lc[lc.length - 1];
+      (l.man || []).forEach(function (mv) {
+        if (cu.s || cu.e) {   // skip turns that belong to a spur we cut off
+          var best = 1e9, bi = 0;
+          for (var k = 0; k < l.ll.length; k++) { var dd = H([mv.lat, mv.lon], l.ll[k]); if (dd < best) { best = dd; bi = k; } }
+          if ((cu.s && lc[bi] <= cu.s + 15) || (cu.e && lc[bi] >= len - cu.e - 15)) return;
+        }
+        cand.push(mv);
+      });
+    });
+    // the turn made AT a point between two lines (e.g. a point placed in an intersection)
+    for (var i = 0; i < tl.length - 1; i++) {
+      var A = tl[i], B = tl[i + 1], ca = cum(A), cb = cum(B), la = ca[ca.length - 1];
+      acc += la;
+      if (la < 30 || cb[cb.length - 1] < 30) continue;
+      var p = A[A.length - 1], dg = ((brg(p, at(B, cb, 30)) - brg(at(A, ca, la - 30), p) + 540) % 360) - 180;
+      cand.push({ lat: p[0], lon: p[1], deg: dg });
+    }
+    // keep only those on the final line, one per place, in driving order
+    cand.forEach(function (mv) {
+      var best = 1e9, bi = 0;
+      for (var k = 0; k < line.length; k++) { var dd = H([mv.lat, mv.lon], line[k]); if (dd < best) { best = dd; bi = k; } }
+      if (best > 25) return;
+      mv.s = c[bi];
+      if (S.turns.some(function (t) { return Math.abs(t.s - mv.s) < 40; })) return;
+      S.turns.push(mv);
+    });
+    S.turns.sort(function (a, b) { return a.s - b.s; });
     var lim = LIMIT[S.veh] || 999, g = m ? L.layerGroup() : null, n = 0;
     S.turns.forEach(function (t) {
       if (Math.abs(t.deg) < lim) return;
       n++; t.check = true;
       if (!g) return;
-      var deg = Math.round(Math.abs(t.deg)), side = t.deg > 0 ? '右' : '左';
+      var deg = Math.round(Math.abs(t.deg)), side = t.deg > 0 ? '右' : '左', word = deg > 150 ? 'Uターン' : deg > 120 ? side + 'に鋭く曲がる' : side + '折';
       var url = CHECKER + '?lat=' + t.lat.toFixed(6) + '&lon=' + t.lon.toFixed(6) + '&deg=' + Math.round(t.deg);
       L.marker([t.lat, t.lon], { icon: L.divIcon({ className: 'lf-ico', iconSize: [30, 30], iconAnchor: [15, 15], html: '<div class="kmark">' + n + '</div>' }), zIndexOffset: 300 })
-        .bindPopup('<div class="pop"><h3>軌跡確認 ' + n + '：' + esc(t.dir) + '</h3><p>' + side + 'に約' + deg + '度曲がります。' + fmtKm(t.s) + '地点。' + (S.veh === 'trailer' ? 'トレーラーは' : '大型車は') + '、内輪差・はみ出しを確認してください。</p><div class="pbtns"><a class="go" href="' + url + '" target="_blank" rel="noopener">旋回軌跡チェッカーで確認</a></div></div>', { maxWidth: 260 })
+        .bindPopup('<div class="pop"><h3>軌跡確認 ' + n + '：' + word + '</h3><p>交差点で' + side + 'に約' + deg + '度曲がります（' + fmtKm(t.s) + '地点）。' + (S.veh === 'trailer' ? 'トレーラーは' : '大型車は') + '、内輪差・はみ出しを確認してください。</p><div class="pbtns"><a class="go" href="' + url + '" target="_blank" rel="noopener">旋回軌跡チェッカーで確認</a></div></div>', { maxWidth: 260 })
         .addTo(g);
     });
     S.nCheck = n;
@@ -739,7 +892,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 
   /* ---------- draft ---------- */
   function save() {
-    try { localStorage.setItem(DRAFT, JSON.stringify({ v: 1, name: $('rName').value, pts: S.pts, legs: S.legs.filter(function (l) { return l.state === 'ok'; }).map(function (l) { return { mode: l.mode, key: l.key, ll: l.ll, state: 'ok' }; }) })); } catch (e) {}
+    try { localStorage.setItem(DRAFT, JSON.stringify({ v: 1, name: $('rName').value, pts: S.pts, legs: S.legs.filter(function (l) { return l.state === 'ok'; }).map(function (l) { return { mode: l.mode, key: l.key, ll: l.ll, state: 'ok', man: l.man, warn: l.warn }; }) })); } catch (e) {}
   }
   function load() {
     var d = null;
@@ -753,34 +906,114 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
 
   /* ---------- search (国土地理院 地名検索) ---------- */
+  // places by name near the map (OpenStreetMap: hotels, shops, factories...) + addresses (国土地理院)
+  var OVP = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+  function rx(t) { return t.replace(/[\\.*+?^${}()|[\]"]/g, '\\$&'); }
+  function ovp(q, k) {
+    if (k >= OVP.length) return Promise.reject(new Error('overpass'));
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 12000);
+    return fetch(OVP[k], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (j) { clearTimeout(to); if (!j || !Array.isArray(j.elements)) throw new Error('bad'); return j.elements; })
+      .catch(function () { clearTimeout(to); return ovp(q, k + 1); });
+  }
+  function poiSearch(q, c) {
+    var toks = q.split(/[\s　]+/).filter(Boolean);
+    if (!toks.length) return Promise.resolve([]);
+    function run(ts, rad) {
+      var f = ts.map(function (t) { return '["name"~"' + rx(t) + '",i]'; }).join('');
+      var qq = '[out:json][timeout:20];nwr' + f + '(around:' + rad + ',' + c.lat.toFixed(5) + ',' + c.lng.toFixed(5) + ');out center 40;';
+      return ovp(qq, 0).then(function (els) {
+        return els.map(function (e) {
+          var lat = e.lat != null ? e.lat : e.center && e.center.lat, lon = e.lon != null ? e.lon : e.center && e.center.lon, tg = e.tags || {};
+          if (lat == null || !tg.name) return null;
+          var kind = tg.tourism === 'hotel' ? 'ホテル' : tg.amenity === 'fuel' ? 'ガソリンスタンド' : tg.shop ? '店' : tg.amenity ? '施設' : tg.building || tg.landuse === 'industrial' ? '建物・敷地' : tg.highway ? '道路' : '場所';
+          return { name: String(tg.name), lat: lat, lon: lon, kind: kind, d: KN.hav({ lat: lat, lon: lon }, { lat: c.lat, lon: c.lng }), road: !!tg.highway };
+        }).filter(function (x) { return x && !x.road; });
+      });
+    }
+    var longest = toks.slice().sort(function (a, b) { return b.length - a.length; })[0];
+    return run(toks, 40000).then(function (r) {
+      if (r.length) return r;
+      return run(toks.length > 1 ? [longest] : toks, 150000);
+    });
+  }
+  function hereSearch(q, c) {
+    var url = 'https://discover.search.hereapi.com/v1/discover?at=' + c.lat.toFixed(5) + ',' + c.lng.toFixed(5) + '&q=' + encodeURIComponent(q) + '&lang=ja&limit=12&in=countryCode:JPN&apiKey=' + encodeURIComponent(hereKey());
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) {
+      return (j.items || []).filter(function (it) { return it.position; }).map(function (it) {
+        var cat = it.categories && it.categories[0] && it.categories[0].name;
+        return { name: String(it.title || ''), lat: it.position.lat, lon: it.position.lng, kind: cat || (it.address && it.address.city) || '施設', d: it.distance != null ? it.distance : KN.hav({ lat: it.position.lat, lon: it.position.lng }, { lat: c.lat, lon: c.lng }) };
+      });
+    });
+  }
+  function gsiSearch(q) {
+    return fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (arr) {
+      return (arr || []).slice(0, 5).map(function (it) { var c = it.geometry.coordinates; return { name: String(it.properties && it.properties.title || ''), lat: c[1], lon: c[0], kind: '住所・地名' }; });
+    });
+  }
   function search(q) {
-    var box = $('results');
-    box.hidden = false; box.innerHTML = '<button disabled>探しています…</button>';
-    fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (arr) {
-      arr = (arr || []).slice(0, 6);
-      if (!arr.length) { box.innerHTML = '<button disabled>見つかりませんでした</button>'; return; }
-      box.innerHTML = arr.map(function (it, k) { return '<button data-k="' + k + '">' + esc(it.properties && it.properties.title) + '<small>タップでここに点を置きます</small></button>'; }).join('');
+    var box = $('results'), c = S.map && S.map.getCenter ? S.map.getCenter() : { lat: 36.06, lng: 136.22 };
+    box.hidden = false; box.innerHTML = '<button disabled>探しています…（施設名は少し時間がかかります）</button>';
+    var got = { poi: null, gsi: null };
+    function draw() {
+      var poi = got.poi || [], gsi = got.gsi || [];
+      var seen = {}, list = [];
+      poi.sort(function (a, b) { return a.d - b.d; }).forEach(function (p) { var k = p.name + Math.round(p.lat * 1000) + Math.round(p.lon * 1000); if (!seen[k]) { seen[k] = 1; list.push(p); } });
+      list = list.slice(0, 8).concat(gsi);
+      var pending = got.poi === null || got.gsi === null;
+      if (!list.length) { box.innerHTML = '<button disabled>' + (pending ? '探しています…' : '見つかりませんでした。地名や「ホテル」など別の言葉でも試してください') + '</button>'; return; }
+      box.innerHTML = list.map(function (it, k) {
+        return '<button data-k="' + k + '">' + esc(it.name) + '<small>' + esc(it.kind) + (it.d != null ? '・ここから' + fmtKm(it.d) : '') + '</small></button>';
+      }).join('') + (pending ? '<button disabled>ほかも探しています…</button>' : '');
       Array.prototype.forEach.call(box.querySelectorAll('button[data-k]'), function (b) {
         b.addEventListener('click', function () {
-          var it = arr[+b.getAttribute('data-k')], c = it.geometry.coordinates;
+          var it = list[+b.getAttribute('data-k')];
           box.hidden = true; $('q').blur();
-          if (S.map) S.map.setView([c[1], c[0]], 16);
-          addPoint(c[1], c[0], String(it.properties.title || '').slice(0, 30));
+          if (S.map) S.map.setView([it.lat, it.lon], 16);
+          addPoint(it.lat, it.lon, it.name.slice(0, 30));
         });
       });
-    }, function () { box.innerHTML = '<button disabled>検索できませんでした（電波を確認してください）</button>'; });
+    }
+    var id = (S.sid = (S.sid || 0) + 1);
+    var poi = hereKey() ? hereSearch(q, c).catch(function () { return poiSearch(q, c); }) : poiSearch(q, c);
+    poi.then(function (r) { if (id === S.sid) { got.poi = r; draw(); } }, function () { if (id === S.sid) { got.poi = []; draw(); } });
+    gsiSearch(q).then(function (r) { if (id === S.sid) { got.gsi = r; draw(); } }, function () { if (id === S.sid) { got.gsi = []; draw(); } });
   }
 
   /* ---------- wiring ---------- */
+  function hereState() {
+    var k = hereKey();
+    $('hereKey').value = k;
+    $('hereSt').textContent = k ? 'HEREを使用中：施設の検索と、車の大きさに合わせた道なりの線をHEREで計算します。' : 'キー未設定：検索は無料の地図データ、道なりの線は試作用の公開サーバーで計算します（トラックの大きさは考えません）。';
+    if (k && S.attr && !S.hereAttr) { S.attr.addAttribution('検索・ルート &copy; <a href="https://www.here.com/" target="_blank" rel="noopener">HERE</a>'); S.hereAttr = true; }
+  }
+  function showDims() {
+    var on = S.veh !== 'car'; $('dims').hidden = !on; if (!on) return;
+    var d = dims(); $('dL').value = d.L; $('dW').value = d.W; $('dH').value = d.H; $('dT').value = d.T;
+  }
   function setChips(attr, val) { Array.prototype.forEach.call(document.querySelectorAll('[' + attr + ']'), function (b) { b.classList.toggle('on', b.getAttribute(attr) === val); }); }
   function bind() {
     Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (b) {
       b.addEventListener('click', function () { S.mode = b.getAttribute('data-mode'); setChips('data-mode', S.mode); toast(S.mode === 'road' ? '次の線は道なりに引きます' : '次の線は直線で引きます'); });
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-veh]'), function (b) {
-      b.addEventListener('click', function () { S.veh = b.getAttribute('data-veh'); setChips('data-veh', S.veh); try { localStorage.setItem(VEH, S.veh); } catch (e) {} analyse(); stats(); });
+      b.addEventListener('click', function () { S.veh = b.getAttribute('data-veh'); setChips('data-veh', S.veh); try { localStorage.setItem(VEH, S.veh); } catch (e) {} showDims(); syncLegs(); rebuild(); save(); });
     });
     $('undo').addEventListener('click', undo);
+    $('hereSave').addEventListener('click', function () {
+      var v = $('hereKey').value.trim();
+      try { if (v) localStorage.setItem(HKEY, v); else localStorage.removeItem(HKEY); } catch (e) {}
+      hereState(); syncLegs(); rebuild(); save();
+      toast(v ? 'HEREのキーを保存しました。検索とルートがHEREになります' : 'HEREのキーを消しました');
+    });
+    ['dL', 'dW', 'dH', 'dT'].forEach(function (id) {
+      $(id).addEventListener('change', function () {
+        var d = { L: +$('dL').value || 0, W: +$('dW').value || 0, H: +$('dH').value || 0, T: +$('dT').value || 0 };
+        try { localStorage.setItem(DIMS + S.veh, JSON.stringify(d)); } catch (e) {}
+        syncLegs(); rebuild(); save();
+      });
+    });
     $('clear').addEventListener('click', function () { if (!S.pts.length) return; pushHist(); S.pts = []; S.legs = []; rebuild(); save(); toast('全部消しました（「元に戻す」で戻せます）'); });
     $('save').addEventListener('click', download);
     $('share').addEventListener('click', share);
@@ -791,9 +1024,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     $('q').addEventListener('input', function () { if (!this.value) $('results').hidden = true; });
   }
   try { S.veh = localStorage.getItem(VEH) || 'trailer'; } catch (e) {}
-  initMap(); bind(); setChips('data-veh', S.veh);
+  initMap(); bind(); setChips('data-veh', S.veh); hereState(); showDims();
   if (!load()) { rebuild(); if (S.map && navigator.geolocation) navigator.geolocation.getCurrentPosition(function (p) { if (!S.pts.length) S.map.setView([p.coords.latitude, p.coords.longitude], 15); }, function () {}, { timeout: 8000 }); }
-  window.__RM = { S: S, addPoint: addPoint, kmlText: kmlText, undo: undo, delPoint: delPoint, movePoint: movePoint, insertOnLeg: insertOnLeg };
+  window.__RM = { S: S, addPoint: addPoint, kmlText: kmlText, undo: undo, delPoint: delPoint, movePoint: movePoint, insertOnLeg: insertOnLeg, fullLine: fullLine, analyse: analyse };
 })();
 
 </script>
