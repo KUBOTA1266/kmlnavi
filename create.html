@@ -74,6 +74,23 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .pop .pbtns .del{border-color:var(--danger);color:var(--danger)}
 .pop .pbtns .go{background:var(--warn);border-color:var(--warn);color:#fff}
 .pop p{margin:0 0 8px;font-size:13.5px;line-height:1.5;color:var(--sub)}
+/* paid plan */
+.acct{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#fff8ec;border:1.5px solid #f3d29a;font-size:13.5px;line-height:1.5}
+.acct span{flex:1 1 160px}
+.acct .pro{color:#b45309}
+.acct button{min-height:38px;padding:0 12px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:13.5px}
+.modal{position:fixed;inset:0;z-index:1200;background:rgba(17,19,24,.55);display:flex;align-items:flex-end;justify-content:center;padding:10px}
+.modal[hidden]{display:none}
+.mbox{width:100%;max-width:520px;max-height:88dvh;overflow:auto;background:#fff;border-radius:18px;padding:18px 16px calc(14px + var(--safe-b))}
+.mbox h2{margin:0 0 8px;font-size:21px}
+.mbox p{margin:0 0 10px;font-size:14.5px;line-height:1.6;color:var(--sub)}
+.mbox .why{color:var(--ink);font-weight:700}
+.mbox .price{font-size:22px;font-weight:800;color:var(--sign);margin:4px 0 8px}
+.mbox ul{margin:0 0 14px;padding-left:1.2em;font-size:15px;line-height:1.7}
+.mbox .btn{margin-bottom:8px}
+.mbox .fine{font-size:12.5px}
+.mbox .code{font-family:ui-monospace,Menlo,monospace;font-size:14px;word-break:break-all;background:var(--soft);border-radius:10px;padding:12px;color:var(--ink);user-select:all;-webkit-user-select:all}
+.mbox input{width:100%;min-height:48px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px;font-size:16px;margin:0 0 10px}
 #toast{position:absolute;left:50%;bottom:calc(52dvh + 12px);transform:translateX(-50%);z-index:1100;background:rgba(17,19,24,.92);color:#fff;padding:10px 16px;border-radius:12px;font-size:14.5px;max-width:calc(100% - 32px);text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
 #toast.show{opacity:1}
 #busy{position:absolute;right:12px;top:calc(76px + var(--safe-t));z-index:1001;background:#fff;border-radius:16px;padding:6px 12px;font-size:13px;font-weight:700;box-shadow:0 3px 12px rgba(0,0,0,.2)}
@@ -111,6 +128,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     <button class="btn primary" id="goNav" disabled>ナビで走る</button>
     <button class="btn" id="share" disabled>送る（SMSなど）</button>
   </div>
+  <div id="acct" class="acct" hidden></div>
   <div class="more">
     <input id="rName" type="text" maxlength="40" placeholder="ルート名（例：神野から佐久間）" autocomplete="off">
     <div class="row" role="group" aria-label="車の種類">
@@ -128,7 +146,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
         <span><input id="dT" type="number" inputmode="decimal" step="0.5" min="0"><small>総重量 t</small></span>
       </div>
     </div>
-    <div class="hk">
+    <div class="hk" id="hk">
       <label for="hereKey">HEREのAPIキー（このスマホの中だけに保存します）</label>
       <div class="hrow"><input id="hereKey" type="password" autocomplete="off" spellcheck="false" placeholder="ここに貼り付け"><button class="chip" id="hereSave">保存</button><button class="chip" id="hereTest">テスト</button></div>
       <p id="hereSt" class="note" style="margin-top:6px"></p>
@@ -141,6 +159,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   </div>
 </section>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="modal" class="modal" hidden><div id="mbox" class="mbox" role="dialog" aria-modal="true"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -558,6 +577,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function dims(v) { v = v || S.veh; var d = null; try { d = JSON.parse(localStorage.getItem(DIMS + v) || 'null'); } catch (e) { d = null; } return d || DEF[v] || DEF.big; }
   // what the road lines are calculated for; a change re-draws the road lines
   function profile() {
+    if (S.srv) { if (S.veh === 'car' || !S.pro) return 'srv-car'; var e = dims(); return 'srv-truck-' + S.veh + '-' + [e.L, e.W, e.H, e.T].join('-'); }
     if (!hereKey()) return 'osrm';
     if (S.veh === 'car') return 'here2-car';
     var d = dims(); return 'here2-truck-' + S.veh + '-' + [d.L, d.W, d.H, d.T].join('-');
@@ -674,17 +694,22 @@ function fpDecode(s) {
       return;
     }
     var truck = /truck/.test(prof), d = dims();
-    var base = 'https://router.hereapi.com/v8/routes?origin=' + c[0] + ',' + c[1] + '&destination=' + c[2] + ',' + c[3] + '&return=polyline,actions&apiKey=' + encodeURIComponent(hereKey());
-    base += truck ? '&transportMode=truck&vehicle[type]=' + (S.veh === 'trailer' ? 'tractor' : 'straightTruck') + (S.veh === 'trailer' ? '&vehicle[trailerCount]=1' : '') +
+    var srv = prof.indexOf('srv-') === 0;
+    var base = srv ? 'api/here/route?origin=' + c[0] + ',' + c[1] + '&destination=' + c[2] + ',' + c[3] + '&mode=' + (truck ? 'truck&veh=' + S.veh + '&L=' + d.L + '&W=' + d.W + '&H=' + d.H + '&T=' + d.T : 'car')
+      : 'https://router.hereapi.com/v8/routes?origin=' + c[0] + ',' + c[1] + '&destination=' + c[2] + ',' + c[3] + '&return=polyline,actions&apiKey=' + encodeURIComponent(hereKey());
+    if (srv) opt.headers = { 'x-kn-code': licCode() };
+    if (!srv) base += truck ? '&transportMode=truck&vehicle[type]=' + (S.veh === 'trailer' ? 'tractor' : 'straightTruck') + (S.veh === 'trailer' ? '&vehicle[trailerCount]=1' : '') +
       '&vehicle[grossWeight]=' + Math.round(d.T * 1000) + '&vehicle[height]=' + Math.round(d.H * 100) + '&vehicle[width]=' + Math.round(d.W * 100) + '&vehicle[length]=' + Math.round(d.L * 100)
       : '&transportMode=car';
     // extras: road class of each stretch, and (for trucks) avoid turns that are hard for big vehicles and U-turns
-    var extra = '&spans=functionalClass' + (truck ? '&avoid[features]=difficultTurns,uTurns' : '');
+    var extra = srv ? '' : '&spans=functionalClass' + (truck ? '&avoid[features]=difficultTurns,uTurns' : '');
     function get(u) { return fetch(u, opt).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: false, status: r.status, j: null }; }); }); }
-    get(base + extra).then(function (x) { return (!x.ok && x.status === 400) ? get(base) : x; }).then(function (x) {
+    get(base + extra).then(function (x) { return (!x.ok && x.status === 400) ? get(srv ? base + '&avoid=0' : base) : x; }).then(function (x) {
       clearTimeout(to);
       var j = x.j || {};
       if (!x.ok) {
+        if (x.status === 402) { done(null, 'トラック・トレーラーのルートはプロ版の機能です'); S.pro = false; acctUI(); openPay('truck'); return; }
+        if (srv && x.status === 429) { done(null, '無料で使える1日の回数を超えました。明日また使うか、プロ版にしてください'); return; }
         var why = x.status === 401 || x.status === 403 ? 'HEREのAPIキーが正しくないか、使えない状態です（' + x.status + '）'
           : x.status === 429 ? 'HEREの無料回数の上限か、混み合っています（429）'
           : 'HEREでルートを出せませんでした（' + x.status + (j.title ? '：' + j.title : '') + '）';
@@ -991,8 +1016,9 @@ function fpDecode(s) {
     });
   }
   function hereSearch(q, c) {
-    var url = 'https://discover.search.hereapi.com/v1/discover?at=' + c.lat.toFixed(5) + ',' + c.lng.toFixed(5) + '&q=' + encodeURIComponent(q) + '&lang=ja&limit=12&in=countryCode:JPN&apiKey=' + encodeURIComponent(hereKey());
-    return fetch(url).then(function (r) {
+    var url = S.srv ? 'api/here/discover?at=' + c.lat.toFixed(5) + ',' + c.lng.toFixed(5) + '&q=' + encodeURIComponent(q)
+      : 'https://discover.search.hereapi.com/v1/discover?at=' + c.lat.toFixed(5) + ',' + c.lng.toFixed(5) + '&q=' + encodeURIComponent(q) + '&lang=ja&limit=12&in=countryCode:JPN&apiKey=' + encodeURIComponent(hereKey());
+    return fetch(url, S.srv ? { headers: { 'x-kn-code': licCode() } } : undefined).then(function (r) {
       if (r.ok) return r.json();
       return r.json().catch(function () { return {}; }).then(function (j) { var e = new Error('here'); e.why = hereWhy(r.status, j); throw e; });
     }, function () { var e = new Error('here'); e.why = 'HEREに接続できませんでした（電波を確認してください）'; throw e; }).then(function (j) {
@@ -1018,7 +1044,7 @@ function fpDecode(s) {
   function search(q) {
     var box = $('results'), c = S.map && S.map.getCenter ? S.map.getCenter() : { lat: 36.06, lng: 136.22 };
     box.hidden = false; box.innerHTML = '<button disabled>探しています…</button>';
-    var useHere = !!hereKey(), got = { here: useHere ? null : [], osm: null, gsi: null, err: '' };
+    var useHere = !!hereKey() || !!S.srv, got = { here: useHere ? null : [], osm: null, gsi: null, err: '' };
     var qn = q.replace(/[\s　]+/g, '');
     function rank(it) { var n = it.name.replace(/[\s　]+/g, ''); return n === qn ? 0 : n.indexOf(qn) >= 0 ? 1 : 2; }
     function draw() {
@@ -1051,8 +1077,106 @@ function fpDecode(s) {
     gsiSearch(q).then(put('gsi'), function () { put('gsi')([]); });
   }
 
+  /* ---------- KMLナビ プロ (payment through our server) ---------- */
+  var CODE = 'kmlnavi.code';
+  function licCode() { try { return localStorage.getItem(CODE) || ''; } catch (e) { return ''; } }
+  function jget(u, o) { return fetch(u, Object.assign({ cache: 'no-store' }, o || {})).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; j._ok = r.ok; return j; }); }); }
+  function initServer() {
+    if (!/^https?:$/.test(location.protocol)) return Promise.resolve();
+    return jget('api/plan').then(function (p) { if (p._ok && p.amount != null && p.here) S.srv = p; }, function () {}).then(function () {
+      if (!S.srv) return;
+      var m = /[?&]paid=(cs_[A-Za-z0-9_]+)/.exec(location.search);
+      if (m) return claim(m[1]);
+      if (licCode()) return checkMe(false);
+    });
+  }
+  function claim(id) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    return jget('api/claim?session_id=' + encodeURIComponent(id)).then(function (j) {
+      if (j.code) { try { localStorage.setItem(CODE, j.code); } catch (e) {} S.pro = !!j.paid; S.sub = j; acctUI(); showCode(true); }
+      else toast('申し込みの確認ができませんでした。少し待ってから開き直してください');
+    }, function () { toast('申し込みの確認ができませんでした（電波を確認してください）'); });
+  }
+  function checkMe(fresh) {
+    return jget('api/me' + (fresh ? '?fresh=1' : ''), { headers: { 'x-kn-code': licCode() } }).then(function (j) {
+      if (j.error === 'bad_code') { try { localStorage.removeItem(CODE); } catch (e) {} }
+      S.pro = !!j.paid; S.sub = j; acctUI(); return j;
+    }, function () { return {}; });
+  }
+  function md(t) { var d = new Date(t); return (d.getMonth() + 1) + '月' + d.getDate() + '日'; }
+  function priceText() {
+    var p = S.srv || {}; if (p.amount == null) return '';
+    var per = p.interval === 'year' ? '年' : '月';
+    return per + p.amount.toLocaleString('ja-JP') + '円' + (p.trialDays > 0 ? '（最初の' + p.trialDays + '日間は無料）' : '');
+  }
+  function acctUI() {
+    var el = $('acct'); if (!el) return;
+    if (!S.srv) { el.hidden = true; return; }
+    el.hidden = false;
+    if (S.pro) {
+      var sb = S.sub || {}, st = sb.cancelAtEnd && sb.until ? md(sb.until) + 'で終了' : sb.status === 'trialing' && sb.trialEnd ? '無料期間 〜' + md(sb.trialEnd) : sb.until ? '次の更新 ' + md(sb.until) : '';
+      el.innerHTML = '<b class="pro">★ プロ版</b>' + (st ? '<span>' + esc(st) + '</span>' : '') + '<button data-act="code">購入コード</button><button data-act="portal">契約・解約</button>';
+    } else {
+      el.innerHTML = '<span>トラック・トレーラーのルートと、KMLの保存・送信は<b>プロ版</b></span><button data-act="pay">くわしく</button>';
+    }
+  }
+  var WHY = { truck: 'トラック・トレーラーの大きさ・重さを考えたルートは、プロ版の機能です。', kml: 'KMLの保存と、人に送る（SMSなど）機能は、プロ版の機能です。' };
+  function modal(html) { $('mbox').innerHTML = html; $('modal').hidden = false; }
+  function openPay(why) {
+    modal('<h2>KMLナビ プロ</h2>' + (WHY[why] ? '<p class="why">' + WHY[why] + '</p>' : '') +
+      '<p class="price">' + esc(priceText()) + '</p><ul>' +
+      '<li>トラック・トレーラーの大きさ・重さでルートを作る</li><li>KMLを保存する・人に送る（SMSなど）</li><li>軌跡確認の印から、旋回軌跡チェッカーへ</li><li>検索・ルート計算の回数制限なし</li></ul>' +
+      '<button class="btn primary" data-act="checkout">申し込む</button>' +
+      '<button class="btn" data-act="enter">購入コードを入れる</button>' +
+      '<p class="fine">ルート作成とナビの案内は、これまでどおり無料です。いつでも解約でき、無料期間中に解約すれば料金はかかりません。<br><a href="https://rigvant.com/legal/tokushoho.html" target="_blank" rel="noopener">特定商取引法に基づく表記</a>・<a href="https://rigvant.com/legal/terms.html" target="_blank" rel="noopener">利用規約</a></p>' +
+      '<button class="btn" data-act="close">閉じる</button>');
+  }
+  function showCode(first) {
+    var c = licCode();
+    modal('<h2>' + (first ? 'プロ版になりました' : '購入コード') + '</h2>' +
+      '<p>' + (first ? 'ありがとうございます。' : '') + 'ほかのスマホでプロ版を使うときは、このコードを入れてください。メモアプリなどに控えておくと安心です。</p>' +
+      '<p class="code" id="codeTxt">' + esc(c) + '</p><button class="btn primary" data-act="copy">コードをコピー</button><button class="btn" data-act="close">閉じる</button>');
+  }
+  function enterCode() {
+    modal('<h2>購入コードを入れる</h2><p>申し込んだスマホの「購入コード」（KN1. で始まる文字）を貼り付けてください。</p>' +
+      '<input id="codeIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="KN1.…">' +
+      '<button class="btn primary" data-act="codeok">確認する</button><button class="btn" data-act="close">閉じる</button>');
+  }
+  function modalClick(e) {
+    var b = e.target.closest ? e.target.closest('[data-act]') : null; if (!b) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'close') { $('modal').hidden = true; }
+    else if (act === 'pay') openPay('');
+    else if (act === 'code') showCode(false);
+    else if (act === 'enter') enterCode();
+    else if (act === 'copy') {
+      var t = licCode();
+      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('コピーしました'); }, function () { toast('コードを長押ししてコピーしてください'); });
+    } else if (act === 'checkout') {
+      b.disabled = true; b.textContent = 'お支払い画面を開いています…';
+      jget('api/checkout', { method: 'POST' }).then(function (j) {
+        if (j.url) location.href = j.url; else { b.disabled = false; b.textContent = '申し込む'; toast('お支払い画面を開けませんでした'); }
+      }, function () { b.disabled = false; b.textContent = '申し込む'; toast('お支払い画面を開けませんでした（電波を確認してください）'); });
+    } else if (act === 'codeok') {
+      var v = ($('codeIn').value || '').replace(/\s+/g, '');
+      if (!v) return;
+      try { localStorage.setItem(CODE, v); } catch (e2) {}
+      checkMe(true).then(function (j) {
+        if (j.paid) { $('modal').hidden = true; toast('プロ版になりました'); syncLegs(); rebuild(); }
+        else { try { localStorage.removeItem(CODE); } catch (e3) {} toast(j.error === 'bad_code' ? 'コードが違います。もう一度コピーして貼ってください' : 'このコードの契約は、今は有効ではありません'); }
+      });
+    } else if (act === 'portal') {
+      jget('api/portal', { method: 'POST', headers: { 'x-kn-code': licCode() } }).then(function (j) { if (j.url) location.href = j.url; else toast('契約の画面を開けませんでした'); }, function () { toast('契約の画面を開けませんでした'); });
+    }
+  }
+
   /* ---------- wiring ---------- */
   function hereState() {
+    if (S.srv) {
+      $('hk').hidden = true;
+      if (S.attr && !S.hereAttr) { S.attr.addAttribution('検索・ルート &copy; <a href="https://www.here.com/" target="_blank" rel="noopener">HERE</a>'); S.hereAttr = true; }
+      return;
+    }
     var k = hereKey();
     $('hereKey').value = k;
     $('hereSt').textContent = k ? 'HEREを使用中：施設の検索と、車の大きさに合わせた道なりの線をHEREで計算します。' : 'キー未設定：検索は無料の地図データ、道なりの線は試作用の公開サーバーで計算します（トラックの大きさは考えません）。';
@@ -1079,7 +1203,7 @@ function fpDecode(s) {
       b.addEventListener('click', function () { S.mode = b.getAttribute('data-mode'); setChips('data-mode', S.mode); toast(S.mode === 'road' ? '次の線は道なりに引きます' : '次の線は直線で引きます'); });
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-veh]'), function (b) {
-      b.addEventListener('click', function () { S.veh = b.getAttribute('data-veh'); setChips('data-veh', S.veh); try { localStorage.setItem(VEH, S.veh); } catch (e) {} showDims(); syncLegs(); rebuild(); save(); });
+      b.addEventListener('click', function () { if (S.srv && !S.pro && b.getAttribute('data-veh') !== 'car') { openPay('truck'); return; } S.veh = b.getAttribute('data-veh'); setChips('data-veh', S.veh); try { localStorage.setItem(VEH, S.veh); } catch (e) {} showDims(); syncLegs(); rebuild(); save(); });
     });
     $('undo').addEventListener('click', undo);
     $('hereSave').addEventListener('click', function () {
@@ -1097,8 +1221,10 @@ function fpDecode(s) {
       });
     });
     $('clear').addEventListener('click', function () { if (!S.pts.length) return; pushHist(); S.pts = []; S.legs = []; rebuild(); save(); toast('全部消しました（「元に戻す」で戻せます）'); });
-    $('save').addEventListener('click', download);
-    $('share').addEventListener('click', share);
+    $('save').addEventListener('click', function () { if (S.srv && !S.pro) { openPay('kml'); return; } download(); });
+    $('share').addEventListener('click', function () { if (S.srv && !S.pro) { openPay('kml'); return; } share(); });
+    $('modal').addEventListener('click', modalClick);
+    $('acct').addEventListener('click', modalClick);
     $('goNav').addEventListener('click', goNav);
     $('grip').addEventListener('click', function () { $('panel').classList.toggle('open'); });
     $('rName').addEventListener('change', function () { save(); });
@@ -1106,8 +1232,12 @@ function fpDecode(s) {
     $('q').addEventListener('input', function () { if (!this.value) $('results').hidden = true; });
   }
   try { S.veh = localStorage.getItem(VEH) || 'trailer'; } catch (e) {}
-  initMap(); bind(); setChips('data-veh', S.veh); hereState(); showDims();
-  if (!load()) { rebuild(); if (S.map && navigator.geolocation) navigator.geolocation.getCurrentPosition(function (p) { if (!S.pts.length) S.map.setView([p.coords.latitude, p.coords.longitude], 15); }, function () {}, { timeout: 8000 }); }
+  initMap(); bind(); setChips('data-veh', S.veh);
+  initServer().then(function () {
+    if (S.srv && !S.pro && S.veh !== 'car') { S.veh = 'car'; setChips('data-veh', S.veh); }
+    hereState(); showDims(); acctUI();
+    if (!load()) { rebuild(); if (S.map && navigator.geolocation) navigator.geolocation.getCurrentPosition(function (p) { if (!S.pts.length) S.map.setView([p.coords.latitude, p.coords.longitude], 15); }, function () {}, { timeout: 8000 }); }
+  });
   window.__RM = { S: S, addPoint: addPoint, kmlText: kmlText, undo: undo, delPoint: delPoint, movePoint: movePoint, insertOnLeg: insertOnLeg, fullLine: fullLine, analyse: analyse };
 })();
 
