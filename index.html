@@ -58,7 +58,7 @@ section.band{padding:clamp(40px,6vw,80px) 0}
 section.alt{background:var(--soft)}
 h2{font-size:clamp(26px,3.2vw,34px);line-height:1.25;margin:0 0 10px;text-wrap:balance}
 .intro{color:var(--sub);margin:0 0 30px;max-width:40em}
-.pts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,3vw,36px)}
+.pts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(18px,3vw,36px)}
 @media (max-width:820px){.pts{grid-template-columns:minmax(0,1fr)}}
 .pt svg{width:56px;height:56px;margin-bottom:10px}
 .pt h3{font-size:20px;margin:0 0 6px;line-height:1.35}
@@ -178,7 +178,12 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
       <div class="pt">
         <svg viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="12" fill="#0b4aa2"/><rect x="8" y="14" width="12" height="28" rx="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2.5"/><rect x="22" y="14" width="12" height="28" rx="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2.5"/><rect x="36" y="14" width="12" height="28" rx="3" fill="#fff"/><path d="M40 36 V25 H45 M43 22 L46 25 L43 28" fill="none" stroke="#0b4aa2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <h3>交差点ごとの車線メモ</h3>
-        <p>曲がり角ごとに「3車線・右から1番目」や交差点名を設定できます。手前で絵と声で教えてくれます。</p>
+        <p>曲がり角ごとに「3車線・右から1番目」を設定できます。手前で絵と声で教えてくれます。</p>
+      </div>
+      <div class="pt">
+        <svg viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="12" fill="#0b4aa2"/><rect x="7" y="19" width="42" height="18" rx="5" fill="#1d2129" stroke="#fff" stroke-width="1.8"/><circle cx="16.5" cy="28" r="5" fill="#16b3a0"/><circle cx="28" cy="28" r="5" fill="#f2b100"/><circle cx="39.5" cy="28" r="5" fill="#e5322d"/></svg>
+        <h3>信号と交差点名を先に表示</h3>
+        <p>「2つ目の信号」「本町三丁目交差点」のように、曲がる前に画面と声で知らせます。信号は地図にも表示します。</p>
       </div>
     </div>
   </div>
@@ -191,7 +196,7 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
     <ol class="steps">
       <li><div><h3>KMLを用意する</h3><p>ルートメーカーなどでルートを作り、KMLで書き出して「ファイル」に保存します。道路の形どおりの線（LineString）が入ったKMLが必要です。地点（ピン）だけのKMLでは案内できません。</p></div></li>
       <li><div><h3>ナビで開く</h3><p>「ナビを開く」→「KMLファイルを開く」で選びます。地図に線と地点、曲がり角の数が出ます。一度開いたルートは、次から「前回のルート」ですぐ開けます。</p></div></li>
-      <li><div><h3>車線とメモを設定する（任意）</h3><p>「曲がり角と車線の設定」で、曲がり角ごとに車線の数と通る車線、交差点名などを設定します。設定はその端末に保存され、同じKMLを開くと自動で読み込みます。</p></div></li>
+      <li><div><h3>交差点名と車線を確かめる（任意）</h3><p>信号と交差点名は、地図データから自動で取り込みます。「曲がり角・交差点名・車線の設定」で、抜けている交差点名や信号を直したり、車線の数と通る車線を設定したりできます。設定はその端末に保存され、同じKMLを開くと自動で読み込みます。</p></div></li>
       <li><div><h3>デモ走行で確かめる</h3><p>「デモ走行で試す」で、ルート上を自動で走らせて案内の出方を確認できます。「次の曲がり角へ」「わざと外れる」で、曲がり角の案内や警告も試せます。</p></div></li>
       <li><div><h3>GPSで走る</h3><p>マナーモードを解除し、充電しながら、ホルダーに固定して使います。「GPSで案内を始める」を押して位置情報を許可すると、線に乗ったところから案内が始まります。</p></div></li>
     </ol>
@@ -208,6 +213,7 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
           <li>KMLナビは運転の補助です。通る道は、必ず許可証と現地の標識で確認してください。</li>
           <li>ナビはKMLの線に忠実に案内します。KMLの線が許可経路どおりかは、ルートを作るときに確認してください。</li>
           <li>曲がる場所は線の形から読み取るため、ゆるい分かれ道では案内が出ないことがあります。</li>
+          <li>信号と交差点名はOpenStreetMap（誰でも編集できる地図）のデータです。抜けや古い情報があるので、「◯つ目の信号」は目安にしてください。</li>
           <li>運転中に画面を操作しないでください。ルートから外れたときは、安全な場所に止まってから確認してください。</li>
         </ul>
       </div>
@@ -220,8 +226,9 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
     <h2 id="f">よくある質問</h2>
     <details><summary>料金はかかりますか？</summary><p>無料版は、登録なしで無料で使えます。通信料はお使いのスマホの契約にしたがってかかります。</p></details>
     <details><summary>どんなKMLが使えますか？</summary><p>道路の形どおりの線（LineString）が入ったKMLです。ルートメーカーで書き出したKMLで動作を確認しています。KMZ（圧縮した形式）には対応していません。</p></details>
-    <details><summary>KMLや設定はどこに保存されますか？</summary><p>KMLはスマホのブラウザの中で読み込むだけで、サーバーには送りません。「前回のルート」と車線の設定は、その端末のブラウザに保存されます。別の端末やブラウザには引き継がれません。</p></details>
+    <details><summary>KMLや設定はどこに保存されますか？</summary><p>KMLのファイルはサーバーに送りません。ただし、信号と交差点名を調べるため、ルートの線の座標だけをOpenStreetMapの検索サーバー（Overpass API）に送ります。名前などの個人情報は送りません。結果は端末に保存し、30日たつと取り直します。「前回のルート」と車線の設定は、その端末のブラウザに保存されます。別の端末やブラウザには引き継がれません。</p></details>
     <details><summary>案内中に画面は消えませんか？</summary><p>対応しているブラウザでは、案内中は画面が消えないようにしています。別のアプリに切り替えると解除されるので、戻ったときに自動でかけ直します。念のため、端末の自動ロックをオフにしておくと確実です。</p></details>
+    <details><summary>交差点名が出ない交差点があります</summary><p>OpenStreetMapに名前が登録されていない交差点です。「曲がり角・交差点名・車線の設定」でその曲がり角を選び、交差点名を入力すると、次から表示して読み上げます。信号の「あり・なし」も直せます。</p></details>
     <details><summary>車線の数は自動で出ますか？</summary><p>自動では出ません。KMLには車線の情報が入っていないため、曲がり角ごとに自分で設定します。一度設定すれば、同じルートでずっと使えます。</p></details>
     <details><summary>どの地図を使っていますか？</summary><p>国土地理院の地図（地理院タイル）とOpenStreetMapです。右上の「地図切替」で切り替えられます。</p></details>
     <details><summary>Androidでも使えますか？</summary><p>使えます。iPhoneはSafari、AndroidはChromeでの利用をおすすめします。</p></details>
@@ -250,7 +257,7 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
       <a href="https://rigvant.com/">お問い合わせ</a>
     </nav>
   </div>
-  <div class="wrap" style="margin-top:18px;font-size:12.5px;color:#8d9bb8">地図：地理院タイル（国土地理院）／ © OpenStreetMap contributors</div>
+  <div class="wrap" style="margin-top:18px;font-size:12.5px;color:#8d9bb8">地図：地理院タイル（国土地理院）／ 地図・信号・交差点名：© OpenStreetMap contributors</div>
 </footer>
 </body>
 </html>

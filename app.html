@@ -71,6 +71,17 @@ body.navon .leaflet-top.leaflet-left{top:var(--navh,140px)}
 .lanes{display:flex;gap:5px;margin-top:10px}
 .ln{flex:0 1 46px;height:42px;border:2px solid rgba(255,255,255,.5);border-radius:7px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.45)}
 .ln.on{background:#fff;border-color:#fff;color:var(--sign)}
+.where{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.xn{display:inline-block;background:var(--sign-d);color:#fff;border:2px solid #fff;border-radius:6px;padding:3px 10px;font-size:20px;font-weight:700;line-height:1.3;letter-spacing:.03em;max-width:100%;overflow-wrap:anywhere}
+.sigb{display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,.22);border-radius:8px;padding:4px 10px 4px 6px;font-size:17px;font-weight:700;line-height:1.3;white-space:nowrap}
+.sigb svg{flex:none}
+.osmst{margin:-8px 0 12px;font-size:13.5px;color:var(--sub);line-height:1.5}
+.mini{min-height:34px;padding:0 10px;margin-left:6px;border-radius:8px;border:1.5px solid var(--sign);background:#fff;color:var(--sign);font-weight:700;font-size:13.5px}
+.tx{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 1px}
+.tsig{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;color:var(--ink)}
+.txn{display:inline-block;background:var(--sign-d);color:#fff;border-radius:4px;padding:1px 7px;font-size:13px;font-weight:700;line-height:1.45}
+.tnn{font-size:12.5px;color:#8f97a3}
+.sigm{background:none;border:none}
 #note{display:inline-block;margin-top:8px;background:#ffd84d;color:#3b2c00;font-weight:700;font-size:16px;line-height:1.35;padding:4px 10px;border-radius:8px}
 #zoom{position:absolute;right:12px;top:calc(var(--navh,150px) + 10px);z-index:1001;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.25);line-height:0}
 .sheethead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
@@ -110,6 +121,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       <div id="dirText"></div>
     </div>
   </div>
+  <div id="where" class="where" hidden></div>
   <div id="lanes" class="lanes" hidden></div>
   <div id="note" hidden></div>
   <div id="sub"></div>
@@ -126,6 +138,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   <div class="notes">
     <p>ルートメーカーなどで書き出した、線の入ったKMLを使います。</p>
     <p>案内中は画面が消えないようにします。充電しながら使ってください。</p>
+    <p>信号の位置と交差点名は、OpenStreetMapの地図データから自動で取り込みます。抜けや間違いは、曲がり角ごとに直せます。</p>
     <p class="warnline">通る道は、許可証と現地の標識で必ず確認してください。運転中は操作しないでください。</p>
   </div>
   <a class="btn link" href="./">使い方・KMLナビについて</a>
@@ -134,6 +147,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
 <section id="routeSheet" class="sheet" hidden>
   <h2 id="rName"></h2>
   <p class="lead" id="rMeta"></p>
+  <p class="osmst" id="osmState" hidden aria-live="polite"></p>
   <label class="f" for="from">どこから案内しますか</label>
   <select id="from"></select>
   <div class="stack" style="margin-top:14px">
@@ -145,21 +159,26 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
 </section>
 
 <section id="turnsSheet" class="sheet" hidden>
-  <div class="sheethead"><h2>曲がり角と車線</h2><button id="turnsClose" class="chip">閉じる</button></div>
-  <p class="lead">タップすると、その曲がり角で使う車線とメモを設定できます。設定はこの端末に保存され、同じKMLを開くと自動で読み込みます。</p>
+  <div class="sheethead"><h2>曲がり角の設定</h2><button id="turnsClose" class="chip">閉じる</button></div>
+  <p class="lead">タップすると、交差点名・信号・使う車線・メモを設定できます。設定はこの端末に保存され、同じKMLを開くと自動で読み込みます。</p>
   <div id="turnList"></div>
 </section>
 
 <section id="editSheet" class="sheet" hidden>
   <div class="sheethead"><h2 id="eTitle"></h2><button id="editClose" class="chip">一覧へ</button></div>
   <div class="editgrid"><div id="eZoom"></div><p id="eInfo" class="lead" style="margin:0"></p></div>
+  <label class="f" for="eName">交差点名（曲がる前に表示して読み上げます）</label>
+  <input id="eName" type="text" maxlength="30" autocomplete="off">
+  <label class="f">信号</label>
+  <div id="eSig" class="chips"></div>
+  <p id="eSrc" class="hint"></p>
   <label class="f">車線の数（曲がる手前の交差点）</label>
   <div id="eCount" class="chips"></div>
   <label class="f">通る車線（いくつでも選べます）</label>
   <div id="eUse" class="lanepick"></div>
   <p id="eSay" class="hint"></p>
-  <label class="f" for="eNote">メモ（交差点名など。300m手前で読み上げます）</label>
-  <input id="eNote" type="text" maxlength="40" placeholder="例：〇〇交差点、右折レーン2本" autocomplete="off">
+  <label class="f" for="eNote">メモ（300m手前で読み上げます）</label>
+  <input id="eNote" type="text" maxlength="40" placeholder="例：歩道橋の先、右折レーン2本" autocomplete="off">
   <p id="eSaved" class="saved" aria-live="polite"></p>
   <div class="row2"><button id="ePrev" class="btn">前の曲がり角</button><button id="eNext" class="btn">次の曲がり角</button></div>
   <button id="eClear" class="btn link">この曲がり角の設定を消す</button>
@@ -413,7 +432,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
 
   function Guide(r, turns) {
     this.r = r; this.turns = turns; this.k = 0; this.said = {}; this.seg = 0; this.target = -1;
-    this.lane = function () { return ''; }; this.note = function () { return ''; };
+    this.lane = function () { return ''; }; this.note = function () { return ''; }; this.where = function () { return ''; };
   }
   Guide.prototype.reset = function (s) {
     this.said = {}; this.k = 0; this.target = -1;
@@ -435,14 +454,14 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       if (this.target !== this.k) {
         this.target = this.k;
         if (D > 400) {
-          out.push('次は、' + distSay(D) + '先、' + dirSay(cur.dir) + (lane ? '。' + lane : ''));
+          out.push('次は、' + distSay(D) + '先、' + (this.where(this.k, s, 'far') || '') + dirSay(cur.dir) + (lane ? '。' + lane : ''));
           ths.forEach(function (th) { if (th >= D * 0.85) this.said[key + th] = 1; }, this);
         }
       }
       ths.forEach(function (th) {
         if (!this.said[key + th] && D <= th && D > th * (th > 300 ? 0.7 : 0.5)) {
           this.said[key + th] = 1;
-          var txt = meters(th) + '先、' + dirSay(cur.dir) + tail;
+          var txt = meters(th) + '先、' + (this.where(this.k, s, th) || '') + dirSay(cur.dir) + tail;
           if (th === 300) { if (lane) txt += '。' + lane; if (note) txt += '。' + note; }
           out.push(txt);
         }
@@ -450,7 +469,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       var soon = Math.max(40, Math.min(120, (speed || 0) * 4));
       if (!this.said[key + 's'] && D <= soon && D > -10) {
         this.said[key + 's'] = 1;
-        out.push('まもなく、' + dirSay(cur.dir) + tail + (lane ? '。' + lane : ''));
+        out.push('まもなく、' + (this.where(this.k, s, 'soon') || '') + dirSay(cur.dir) + tail + (lane ? '。' + lane : ''));
       }
       info = { dir: cur.dir, dist: D, chain: chain, idx: this.k };
     }
@@ -464,7 +483,101 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     return { say: out, next: info, stop: sg.end, toStop: toStop, remain: this.r.total - s };
   };
 
-  var api = { hav: hav, bearing: bearing, angDiff: angDiff, parseKML: parseKML, buildRoute: buildRoute, pointAt: pointAt, detectTurns: detectTurns, Matcher: Matcher, Guide: Guide };
+  /* ---------- signals & intersection names (OpenStreetMap) ---------- */
+  function simplify(r, tol) {
+    var P = r.pts, n = P.length, keep = [], stack = [[0, n - 1]], t2 = tol * tol;
+    keep[0] = keep[n - 1] = 1;
+    while (stack.length) {
+      var se = stack.pop(), a = se[0], b = se[1], A = P[a], B = P[b];
+      var dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy, md = -1, mi = -1;
+      for (var i = a + 1; i < b; i++) {
+        var t = L2 > 0 ? ((P[i].x - A.x) * dx + (P[i].y - A.y) * dy) / L2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        var ex = A.x + dx * t - P[i].x, ey = A.y + dy * t - P[i].y, d = ex * ex + ey * ey;
+        if (d > md) { md = d; mi = i; }
+      }
+      if (mi > 0 && md > t2) { keep[mi] = 1; stack.push([a, mi], [mi, b]); }
+    }
+    var out = [];
+    for (var j = 0; j < n; j++) if (keep[j]) out.push(P[j]);
+    return out;
+  }
+  // Overpass queries along the route line (split so each request stays small)
+  function osmQueries(r, maxPts) {
+    var sp = simplify(r, 6), qs = [], step = maxPts || 400;
+    for (var i = 0; i < sp.length - 1; i += step) {
+      var line = sp.slice(i, Math.min(sp.length, i + step + 1)).map(function (p) { return p.lat.toFixed(5) + ',' + p.lon.toFixed(5); }).join(',');
+      qs.push('[out:json][timeout:55];(node[~"^(highway|crossing)$"~"^traffic_signals$"](around:35,' + line + ');node["junction"]["name"](around:35,' + line + '););out body;');
+    }
+    return qs;
+  }
+  function osmNode(el) {
+    var tg = el.tags || {};
+    return {
+      id: el.id, lat: el.lat, lon: el.lon,
+      sig: tg.highway === 'traffic_signals' || tg.crossing === 'traffic_signals',
+      name: String(tg.name || tg['name:ja'] || '').trim(),
+      kana: String(tg['name:ja-Hira'] || tg['name:ja_kana'] || tg['name:ja-Kana'] || '').trim()
+    };
+  }
+  // every pass of the route within R metres of each node -> {s, d, sig, name, kana}
+  function snapNodes(r, nodes, R) {
+    R = R || 25;
+    var hits = [], P = r.pts;
+    nodes.forEach(function (nd) {
+      var p = project(r, nd), cand = [];
+      for (var i = 0; i < P.length - 1; i++) {
+        if (r.conn[i]) continue;
+        var a = P[i], b = P[i + 1];
+        if (p.x < Math.min(a.x, b.x) - R || p.x > Math.max(a.x, b.x) + R || p.y < Math.min(a.y, b.y) - R || p.y > Math.max(a.y, b.y) + R) continue;
+        var dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+        var t = L2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        var qx = a.x + dx * t - p.x, qy = a.y + dy * t - p.y, d = Math.sqrt(qx * qx + qy * qy);
+        if (d <= R) cand.push({ s: a.s + (b.s - a.s) * t, d: d });
+      }
+      var g = null;
+      function flush() { if (g) hits.push({ s: g.s, d: g.d, sig: !!nd.sig, name: nd.name || '', kana: nd.kana || '' }); }
+      cand.forEach(function (c) {
+        if (g && c.s - g.last <= 60) { g.last = c.s; if (c.d < g.d) { g.d = c.d; g.s = c.s; } }
+        else { flush(); g = { s: c.s, d: c.d, last: c.s }; }
+      });
+      flush();
+    });
+    return hits;
+  }
+  // nodes of one intersection (dual carriageways, stop lines) -> one point on the route
+  function clusterNodes(hits, gap) {
+    gap = gap || 45;
+    var sorted = hits.slice().sort(function (a, b) { return a.s - b.s; }), groups = [], c = null;
+    sorted.forEach(function (h) {
+      if (c && h.s - c.s0 <= gap) c.m.push(h);
+      else { c = { s0: h.s, m: [h] }; groups.push(c); }
+    });
+    function nearest(arr) { return arr.reduce(function (a, b) { return b.d < a.d ? b : a; }); }
+    return groups.map(function (g) {
+      var sigs = g.m.filter(function (h) { return h.sig; }), named = g.m.filter(function (h) { return h.name; });
+      var base = nearest(sigs.length ? sigs : g.m), nm = named.length ? nearest(named) : null;
+      return { s: base.s, sig: sigs.length > 0, name: nm ? nm.name : '', kana: nm ? nm.kana : '' };
+    });
+  }
+  function attachTurns(turns, clusters, tol) {
+    tol = tol || 35;
+    turns.forEach(function (t) {
+      var best = null;
+      clusters.forEach(function (c) { var d = Math.abs(c.s - t.s); if (d <= tol && (!best || d < Math.abs(best.s - t.s))) best = c; });
+      t.osm = best;
+    });
+  }
+  // how many signals from s up to (and including) the one at `at`
+  function signalOrdinal(sigS, s, at) {
+    var n = 0;
+    for (var i = 0; i < sigS.length; i++) if (sigS[i] > s - 5 && sigS[i] <= at + 1) n++;
+    return Math.max(1, n);
+  }
+
+  var api = { hav: hav, bearing: bearing, angDiff: angDiff, parseKML: parseKML, buildRoute: buildRoute, pointAt: pointAt, detectTurns: detectTurns, Matcher: Matcher, Guide: Guide,
+    simplify: simplify, osmQueries: osmQueries, osmNode: osmNode, snapNodes: snapNodes, clusterNodes: clusterNodes, attachTurns: attachTurns, signalOrdinal: signalOrdinal };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KN = api;
 })(typeof window !== 'undefined' ? window : this);
 
@@ -478,7 +591,8 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     route: null, turns: [], map: null, L: {}, tiles: [], tileIdx: 0,
     mode: 'idle', watch: null, demo: null, voice: true, follow: true,
     lastFix: null, lastAlarm: 0, lastOffSay: 0, wake: null, ac: null,
-    startS: 0, arrived: false, voiceJa: null
+    startS: 0, arrived: false, voiceJa: null,
+    osm: { state: 'idle', clusters: [] }, osmReq: 0, sigS: []
   };
 
   function store(name, text) { try { localStorage.setItem(KEY, JSON.stringify({ name: name, text: text })); } catch (e) {} }
@@ -502,7 +616,8 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       { name: 'OSM', layer: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }) }
     ];
     S.map = L.map('map', { zoomControl: false, preferCanvas: true, attributionControl: false }).setView([36.06, 136.22], 9);
-    L.control.attribution({ position: 'topleft' }).addTo(S.map);
+    S.attr = L.control.attribution({ position: 'topleft' }).addTo(S.map);
+    S.map.on('zoomend', sigVis);
     S.tiles.forEach(function (t) { t.layer.on('tileerror', function () { if (!S.tileWarned) { S.tileWarned = true; $('maperr').textContent = '地図の画像を読み込めませんでした。電波を確認してください（案内は線だけでも動きます）。'; show('maperr', true); setTimeout(function () { show('maperr', false); }, 6000); } }); });
     S.tiles[0].layer.addTo(S.map);
     S.map.on('dragstart', function () { if (navOn()) { S.follow = false; show('recenter', true); } });
@@ -530,7 +645,33 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       L.circleMarker([st.lat, st.lon], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#111318', fillOpacity: 1 }).bindPopup(esc(st.name)).addTo(g);
     });
     S.L.marks = g.addTo(S.map);
+    drawSignals();
     S.map.fitBounds(S.L.line.getBounds(), { padding: [30, 30] });
+  }
+  function drawSignals() {
+    if (!S.map) return;
+    if (S.L.sig) { S.map.removeLayer(S.L.sig); S.L.sig = null; }
+    var cl = S.osm.clusters || [];
+    if (!cl.length && !S.sigS.length) return;
+    var g = L.layerGroup(), r = S.route;
+    S.sigS.forEach(function (s) {
+      var p = KN.pointAt(r, s), c = clusterAt(s);
+      L.marker([p.lat, p.lon], { icon: L.divIcon({ className: 'sigm', iconSize: [30, 14], iconAnchor: [15, 7], html: sigSVG(30) }), keyboard: false })
+        .bindPopup('信号' + (c && c.name ? '：' + esc(c.name) : '')).addTo(g);
+    });
+    S.L.sig = g;
+    sigVis();
+  }
+  function sigVis() {
+    if (!S.map || !S.L.sig) return;
+    var z = S.map.getZoom ? S.map.getZoom() : 15, on = S.map.hasLayer ? S.map.hasLayer(S.L.sig) : !!S.L.sig._on;
+    if (z >= 14 && !on) { S.L.sig.addTo(S.map); S.L.sig._on = true; }
+    else if (z < 14 && on) { S.map.removeLayer(S.L.sig); S.L.sig._on = false; }
+  }
+  function clusterAt(s) {
+    var cl = S.osm.clusters || [];
+    for (var i = 0; i < cl.length; i++) if (Math.abs(cl[i].s - s) < 1) return cl[i];
+    return null;
   }
   function arrowIcon(deg) {
     return L.divIcon({ className: 'me', iconSize: [40, 40], iconAnchor: [20, 20],
@@ -543,9 +684,11 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       var parsed = KN.parseKML(text);
       S.route = KN.buildRoute(parsed);
       S.turns = KN.detectTurns(S.route);
+      S.osm = { state: 'idle', clusters: [] }; S.sigS = [];
       loadMemos();
       store(parsed.name || fname, text);
       initMap(); drawRoute(); routeScreen();
+      loadOSM(false);
     } catch (e) {
       toast(e.message || 'KMLを読み込めませんでした');
     }
@@ -559,6 +702,108 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     rd.onload = function () { openText(String(rd.result), f.name); };
     rd.onerror = function () { toast('ファイルを読めませんでした'); };
     rd.readAsText(f);
+  }
+
+  /* ---------- signals & intersection names (OpenStreetMap via Overpass) ---------- */
+  var OSM_EP = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  function osmKey() { var r = S.route; return 'kmlnavi.osm.' + r.name + '|' + Math.round(r.total) + '|' + r.pts.length; }
+  function loadOSM(force) {
+    var id = ++S.osmReq, c = null;
+    if (!force) try { c = JSON.parse(localStorage.getItem(osmKey()) || 'null'); } catch (e) { c = null; }
+    if (c && c.v === 1 && Date.now() - c.t < 30 * 864e5) { applyOSM(c.n, c.t); return; }
+    if (typeof fetch !== 'function') { S.osm = { state: 'err', clusters: [] }; osmState(); return; }
+    var qs = KN.osmQueries(S.route, 400), all = [], seen = {}, i = 0;
+    S.osm = { state: 'loading', clusters: [], part: 0, parts: qs.length }; osmState();
+    (function next() {
+      if (id !== S.osmReq) return;
+      if (i >= qs.length) {
+        var t = Date.now();
+        try { localStorage.setItem(osmKey(), JSON.stringify({ v: 1, t: t, n: all })); } catch (e) {}
+        applyOSM(all, t); return;
+      }
+      S.osm.part = i; osmState();
+      overpass(qs[i], 0, function (err, els) {
+        if (id !== S.osmReq) return;
+        if (err) { S.osm = { state: 'err', clusters: [] }; osmState(); return; }
+        els.forEach(function (el) {
+          if (el.type !== 'node' || seen[el.id]) return; seen[el.id] = 1;
+          var n = KN.osmNode(el);
+          all.push([+n.lat.toFixed(6), +n.lon.toFixed(6), n.sig ? 1 : 0, n.name, n.kana]);
+        });
+        i++; next();
+      });
+    })();
+  }
+  function overpass(q, ep, cb) {
+    if (ep >= OSM_EP.length) { cb(new Error('overpass')); return; }
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    var to = setTimeout(function () { if (ctl) ctl.abort(); }, 60000);
+    fetch(OSM_EP[ep], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
+      .then(function (res) { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
+      .then(function (j) {
+        clearTimeout(to);
+        if (!j || !Array.isArray(j.elements) || (j.remark && /error|timed out|out of memory/i.test(j.remark))) throw new Error('remark');
+        cb(null, j.elements);
+      })
+      .catch(function () { clearTimeout(to); overpass(q, ep + 1, cb); });
+  }
+  function applyOSM(arr, t) {
+    var nodes = (arr || []).map(function (a) { return { lat: a[0], lon: a[1], sig: !!a[2], name: a[3] || '', kana: a[4] || '' }; });
+    var cl = KN.clusterNodes(KN.snapNodes(S.route, nodes, 25), 45);
+    KN.attachTurns(S.turns, cl, 35);
+    S.osm = { state: 'ok', clusters: cl, t: t };
+    rebuildSigs();
+    if (!S.osmAttr && S.attr && S.attr.addAttribution) { S.attr.addAttribution('信号・交差点名 &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'); S.osmAttr = true; }
+    osmState();
+    if (S.mode === 'route') routeScreen();
+    if (!$('turnsSheet').hidden) openTurns();
+    if (!$('editSheet').hidden && S.ei != null) openEdit(S.ei);
+  }
+  // signal positions along the route, with the user's per-turn corrections applied
+  function rebuildSigs() {
+    var a = (S.osm.clusters || []).filter(function (c) { return c.sig; }).map(function (c) { return c.s; });
+    S.turns.forEach(function (t, k) {
+      var m = S.memo && S.memo[k]; if (!m || (m.sig !== true && m.sig !== false)) return;
+      var at = t.osm ? t.osm.s : t.s, i = a.indexOf(at);
+      if (m.sig === false && i >= 0) a.splice(i, 1);
+      if (m.sig === true && i < 0) a.push(at);
+    });
+    S.sigS = a.sort(function (x, y) { return x - y; });
+    drawSignals();
+  }
+  function osmState() {
+    var el = $('osmState'); if (!el) return;
+    var o = S.osm, h = '';
+    if (o.state === 'loading') h = '信号と交差点名を地図データから取得中…' + (o.parts > 1 ? '（' + (o.part + 1) + '/' + o.parts + '）' : '');
+    else if (o.state === 'ok') {
+      var nn = S.turns.filter(function (t, k) { return !!tinfo(k).name; }).length;
+      h = '信号 ' + S.sigS.length + 'か所・交差点名あり ' + nn + '/' + S.turns.length + '（OpenStreetMap）';
+    } else if (o.state === 'err') h = '信号と交差点名を取得できませんでした（案内はできます）。<button id="osmRetry" class="mini">もう一度</button>';
+    el.innerHTML = h; el.hidden = !h;
+    var b = $('osmRetry'); if (b) b.addEventListener('click', function () { loadOSM(true); });
+  }
+  function tinfo(k) {
+    var t = S.turns[k], m = (S.memo && S.memo[k]) || {}, o = (t && t.osm) || null;
+    var sig = m.sig === true || m.sig === false ? m.sig : !!(o && o.sig);
+    return { name: m.xname || (o && o.name) || '', kana: m.xname ? '' : (o && o.kana) || '', sig: sig, at: o ? o.s : (t ? t.s : 0), osm: o };
+  }
+  function xSay(w) {
+    var b = String(w.kana || w.name || '').replace(/[（(][^）)]*[）)]/g, '').trim();
+    if (!b) return '';
+    return /交差点$/.test(b) ? b : b + '交差点';
+  }
+  function ordinal(k, s) { var w = tinfo(k); return w.sig ? KN.signalOrdinal(S.sigS, s, w.at) : 0; }
+  function ordText(o) { return o === 1 ? '次の信号' : o <= 9 ? o + 'つ目の信号' : '信号'; }
+  function whereSay(k, s, mode) {
+    var w = tinfo(k), nm = xSay(w);
+    if (mode === 'soon') return nm ? nm + 'を、' : w.sig ? '信号を、' : '';
+    var parts = [], o = ordinal(k, s);
+    if (o && o <= 3) parts.push(ordText(o));
+    if (nm) parts.push(nm);
+    return parts.length ? parts.join('、') + 'を、' : '';
+  }
+  function sigSVG(w) {
+    return '<svg viewBox="0 0 44 20" width="' + w + '" height="' + Math.round(w * 20 / 44) + '" aria-hidden="true"><rect x="1" y="1" width="42" height="18" rx="5" fill="#1d2129" stroke="#fff" stroke-width="1.6"/><circle cx="10.5" cy="10" r="5" fill="#16b3a0"/><circle cx="22" cy="10" r="5" fill="#f2b100"/><circle cx="33.5" cy="10" r="5" fill="#e5322d"/></svg>';
   }
 
   /* ---------- screens ---------- */
@@ -576,8 +821,9 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     $('rName').textContent = r.name;
     $('rMeta').textContent = fmt(r.total) + '・地点 ' + (r.segs.length + 1) + 'か所・曲がり角 ' + S.turns.length + 'か所';
     var nm = Object.keys(S.memo || {}).length;
-    $('turnsBtn').textContent = '曲がり角と車線の設定' + (nm ? '（' + nm + 'か所設定済み）' : '');
+    $('turnsBtn').textContent = '曲がり角・交差点名・車線の設定' + (nm ? '（' + nm + 'か所設定済み）' : '');
     show('turnsSheet', false); show('editSheet', false);
+    osmState();
     var sel = $('from');
     sel.innerHTML = '';
     r.segs.forEach(function (sg, i) {
@@ -649,15 +895,18 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
         var d = KN.hav(t, m), ds = Math.abs(t.s - (m.s || 0));
         if (d < 40 && ds < 150 && sideOf(t.dir) === sideOf(m.dir || '') && d + ds * 0.2 < bd) { bd = d + ds * 0.2; best = i; }
       });
-      if (best >= 0) S.memo[best] = { lanes: m.lanes | 0, use: (m.use || []).filter(function (u) { return u >= 1 && u <= (m.lanes | 0); }), note: String(m.note || '').slice(0, 40) };
+      if (best >= 0) S.memo[best] = { lanes: m.lanes | 0, use: (m.use || []).filter(function (u) { return u >= 1 && u <= (m.lanes | 0); }), note: String(m.note || '').slice(0, 40),
+        xname: String(m.xname || '').slice(0, 30), sig: m.sig === true || m.sig === false ? m.sig : null };
     });
+    rebuildSigs();
   }
+  function emptyMemo(m) { return !m.lanes && !m.note && !m.xname && m.sig !== true && m.sig !== false; }
   function saveMemos() {
     var arr = [];
     Object.keys(S.memo).forEach(function (k) {
       var t = S.turns[k], m = S.memo[k];
-      if (!t || (!m.lanes && !m.note)) { delete S.memo[k]; return; }
-      arr.push({ s: Math.round(t.s), lat: t.lat, lon: t.lon, dir: t.dir, lanes: m.lanes, use: m.use, note: m.note });
+      if (!t || emptyMemo(m)) { delete S.memo[k]; return; }
+      arr.push({ s: Math.round(t.s), lat: t.lat, lon: t.lon, dir: t.dir, lanes: m.lanes, use: m.use, note: m.note, xname: m.xname || '', sig: m.sig });
     });
     try { localStorage.setItem(memoKey(), JSON.stringify(arr)); return true; } catch (e) { toast('この端末にメモを保存できませんでした'); return false; }
   }
@@ -716,10 +965,24 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       var q = P(posS);
       out += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (size * 0.055).toFixed(1) + '" fill="#111318" stroke="#fff" stroke-width="3"/>';
     }
+    var sw = Math.round(size * 0.2), sh = Math.round(sw * 20 / 44);
+    S.sigS.forEach(function (x) {
+      if (x < t.s - 140 || x > t.s + 115) return;
+      var g = P(x), gx = Math.max(2, Math.min(size - sw - 2, g[0] + size * 0.07)), gy = Math.max(2, Math.min(size - sh - 2, g[1] - sh - size * 0.04));
+      out += '<g transform="translate(' + gx.toFixed(1) + ',' + gy.toFixed(1) + ')">' + sigSVG(sw).replace('<svg ', '<svg x="0" y="0" ') + '</g>';
+    });
     return out + '</svg>';
   }
+  function whereHTML(k, s) {
+    var w = tinfo(k), h = '';
+    if (w.sig) h += '<span class="sigb">' + sigSVG(30) + '<span>' + ordText(ordinal(k, s)) + '</span></span>';
+    if (w.name) h += '<span class="xn">' + esc(w.name) + '</span>';
+    return h;
+  }
   function extras(n) {
-    if (!n) { show('lanes', false); show('note', false); show('zoom', false); return; }
+    if (!n) { show('lanes', false); show('note', false); show('zoom', false); show('where', false); return; }
+    var wh = whereHTML(n.idx, S.matcher && S.matcher.s != null ? S.matcher.s : S.turns[n.idx].s - n.dist);
+    $('where').innerHTML = wh; show('where', !!wh);
     var m = S.memo[n.idx];
     var lh = laneHTML(m, n.dir, 'ln');
     $('lanes').innerHTML = lh; show('lanes', !!lh);
@@ -733,8 +996,10 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     show('routeSheet', false); show('editSheet', false); show('turnsSheet', true);
     var h = '';
     S.turns.forEach(function (t, i) {
-      var mt = memoText(i);
-      h += '<button class="trow" data-i="' + i + '"><span class="tno">' + (i + 1) + '</span><span class="tic">' + arrowSVG(t.deg, false, '#111318', 30) + '</span><span class="tkm">' + fmt(t.s) + '</span><span class="tdir"><b>' + word(t.dir) + '</b>' + (mt ? '<small>' + esc(mt) + '</small>' : '<small class="none">未設定</small>') + '</span></button>';
+      var mt = memoText(i), w = tinfo(i);
+      var xl = (w.sig ? '<span class="tsig">' + sigSVG(22) + '信号</span>' : '') + (w.name ? '<span class="txn">' + esc(w.name) + '</span>' : (S.osm.state === 'loading' ? '' : '<span class="tnn">交差点名なし</span>'));
+      h += '<button class="trow" data-i="' + i + '"><span class="tno">' + (i + 1) + '</span><span class="tic">' + arrowSVG(t.deg, false, '#111318', 30) + '</span><span class="tkm">' + fmt(t.s) + '</span><span class="tdir"><b>' + word(t.dir) + '</b>' +
+        (xl ? '<span class="tx">' + xl + '</span>' : '') + (mt ? '<small>' + esc(mt) + '</small>' : '<small class="none">車線 未設定</small>') + '</span></button>';
     });
     $('turnList').innerHTML = h || '<p class="lead">曲がり角が見つかりませんでした。</p>';
     Array.prototype.forEach.call($('turnList').querySelectorAll('.trow'), function (b) {
@@ -750,7 +1015,15 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     $('eZoom').innerHTML = turnSVG(t, null, 150);
     var prev = S.turns[i - 1], sg = S.route.segs[t.seg];
     $('eInfo').textContent = (prev ? '前の曲がり角から ' + fmt(t.s - prev.s) : 'スタートから ' + fmt(t.s)) + '。区間：' + (sg ? sg.name : '');
-    var m = S.memo[i] || { lanes: 0, use: [], note: '' };
+    var m = S.memo[i] || { lanes: 0, use: [], note: '', xname: '', sig: null };
+    var w = tinfo(i), o = w.osm;
+    $('eName').value = m.xname || '';
+    $('eName').placeholder = o && o.name ? o.name + '（地図データ）' : '例：本町三丁目';
+    drawSigPick();
+    $('eSrc').textContent = S.osm.state === 'loading' ? '地図データを取得中です…'
+      : S.osm.state !== 'ok' ? '地図データ（信号・交差点名）を取得できていません。手で入力できます。'
+      : o ? '地図データ：' + (o.name ? o.name : '交差点名なし') + '・' + (o.sig ? '信号あり' : '信号なし') + '。違っていたら上で直せます。'
+      : '地図データにこの交差点の情報がありません。名前と信号を手で入れられます。';
     var ch = '<button class="chip' + (!m.lanes ? ' on' : '') + '" data-n="0">なし</button>';
     for (var n = 1; n <= 6; n++) ch += '<button class="chip' + (m.lanes === n ? ' on' : '') + '" data-n="' + n + '">' + n + '</button>';
     $('eCount').innerHTML = ch;
@@ -762,7 +1035,21 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     $('ePrev').disabled = i === 0; $('eNext').disabled = i === S.turns.length - 1;
     if (S.map) S.map.setView([t.lat, t.lon], 17);
   }
-  function cur() { var i = S.ei; if (!S.memo[i]) S.memo[i] = { lanes: 0, use: [], note: '' }; return S.memo[i]; }
+  function cur() { var i = S.ei; if (!S.memo[i]) S.memo[i] = { lanes: 0, use: [], note: '', xname: '', sig: null }; return S.memo[i]; }
+  function drawSigPick() {
+    var m = S.memo[S.ei] || {}, o = S.turns[S.ei].osm, v = m.sig === true ? '1' : m.sig === false ? '0' : 'a';
+    var auto = '自動' + (S.osm.state === 'ok' ? '（' + (o && o.sig ? 'あり' : 'なし') + '）' : '');
+    $('eSig').innerHTML = [['a', auto], ['1', 'あり'], ['0', 'なし']].map(function (x) {
+      return '<button class="chip' + (x[0] === v ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>';
+    }).join('');
+    Array.prototype.forEach.call($('eSig').querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () {
+        var mm = cur(), x = b.getAttribute('data-v');
+        mm.sig = x === '1' ? true : x === '0' ? false : null;
+        drawSigPick(); persist();
+      });
+    });
+  }
   function setLanes(n) {
     var m = cur(); m.lanes = n; m.use = m.use.filter(function (u) { return u <= n; });
     Array.prototype.forEach.call($('eCount').querySelectorAll('button'), function (b) { b.classList.toggle('on', +b.getAttribute('data-n') === n); });
@@ -783,7 +1070,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     var say = laneSay(S.ei);
     $('eSay').textContent = say ? '読み上げ：「' + say + '」' : '通る車線をタップしてください（いくつでも選べます）。';
   }
-  function persist() { if (saveMemos()) { $('eSaved').textContent = '保存しました'; clearTimeout(persist.t); persist.t = setTimeout(function () { $('eSaved').textContent = ''; }, 1500); } }
+  function persist() { rebuildSigs(); if (saveMemos()) { $('eSaved').textContent = '保存しました'; clearTimeout(persist.t); persist.t = setTimeout(function () { $('eSaved').textContent = ''; }, 1500); } }
 
   /* ---------- navigation ---------- */
   function navOn() { return S.mode === 'gps' || S.mode === 'demo'; }
@@ -791,7 +1078,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     unlockAudio(); pickVoice();
     S.startS = parseFloat($('from').value) || 0;
     S.matcher = new KN.Matcher(S.route); S.matcher.minS = Math.max(0, S.startS - 200);
-    S.guide = new KN.Guide(S.route, S.turns); S.guide.lane = laneSay; S.guide.note = noteSay; S.guide.reset(S.startS);
+    S.guide = new KN.Guide(S.route, S.turns); S.guide.lane = laneSay; S.guide.note = noteSay; S.guide.where = whereSay; S.guide.reset(S.startS);
     document.body.classList.add('navon');
     S.mode = kind; S.follow = true; S.arrived = false; S.lastFix = null; S.lastAlarm = 0; S.lastOffSay = 0;
     show('routeSheet', false); show('nav', true); show('bar', true); show('demoCtl', kind === 'demo'); show('recenter', false);
@@ -977,7 +1264,8 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     $('ePrev').addEventListener('click', function () { if (S.ei > 0) openEdit(S.ei - 1); });
     $('eNext').addEventListener('click', function () { if (S.ei < S.turns.length - 1) openEdit(S.ei + 1); });
     $('eNote').addEventListener('input', function () { var m = cur(); m.note = this.value.slice(0, 40); persist(); });
-    $('eClear').addEventListener('click', function () { delete S.memo[S.ei]; saveMemos(); openEdit(S.ei); toast('この曲がり角の設定を消しました'); });
+    $('eName').addEventListener('input', function () { var m = cur(); m.xname = this.value.trim().slice(0, 30); persist(); });
+    $('eClear').addEventListener('click', function () { delete S.memo[S.ei]; rebuildSigs(); saveMemos(); openEdit(S.ei); toast('この曲がり角の設定を消しました'); });
     $('x1').addEventListener('click', function () { setDemoMult(1); });
     $('x3').addEventListener('click', function () { setDemoMult(3); });
     $('x10').addEventListener('click', function () { setDemoMult(10); });
