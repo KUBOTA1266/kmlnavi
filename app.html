@@ -76,6 +76,8 @@ body.navon .leaflet-top.leaflet-left{top:var(--navh,140px)}
 .sigb{display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,.22);border-radius:8px;padding:4px 10px 4px 6px;font-size:17px;font-weight:700;line-height:1.3;white-space:nowrap}
 .sigb svg{flex:none}
 .osmst{margin:-8px 0 12px;font-size:13.5px;color:var(--sub);line-height:1.5}
+#osmState2{margin:0 0 10px}
+.why{font-size:11.5px;color:#8f97a3;word-break:break-all}
 .mini{min-height:34px;padding:0 10px;margin-left:6px;border-radius:8px;border:1.5px solid var(--sign);background:#fff;color:var(--sign);font-weight:700;font-size:13.5px}
 .tx{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 1px}
 .tsig{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;color:var(--ink)}
@@ -161,6 +163,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
 <section id="turnsSheet" class="sheet" hidden>
   <div class="sheethead"><h2>曲がり角の設定</h2><button id="turnsClose" class="chip">閉じる</button></div>
   <p class="lead">タップすると、交差点名・信号・使う車線・メモを設定できます。設定はこの端末に保存され、同じKMLを開くと自動で読み込みます。</p>
+  <p class="osmst" id="osmState2" hidden aria-live="polite"></p>
   <div id="turnList"></div>
 </section>
 
@@ -504,10 +507,10 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   }
   // Overpass queries along the route line (split so each request stays small)
   function osmQueries(r, maxPts) {
-    var sp = simplify(r, 6), qs = [], step = maxPts || 400;
+    var sp = simplify(r, 6), qs = [], step = maxPts || 150;
     for (var i = 0; i < sp.length - 1; i += step) {
-      var line = sp.slice(i, Math.min(sp.length, i + step + 1)).map(function (p) { return p.lat.toFixed(5) + ',' + p.lon.toFixed(5); }).join(',');
-      qs.push('[out:json][timeout:55];(node[~"^(highway|crossing)$"~"^traffic_signals$"](around:35,' + line + ');node["junction"]["name"](around:35,' + line + '););out body;');
+      var L = '(around:35,' + sp.slice(i, Math.min(sp.length, i + step + 1)).map(function (p) { return p.lat.toFixed(5) + ',' + p.lon.toFixed(5); }).join(',') + ')';
+      qs.push('[out:json][timeout:40];(node["highway"="traffic_signals"]' + L + ';node["crossing"="traffic_signals"]' + L + ';node["junction"]["name"]' + L + ';);out body;');
     }
     return qs;
   }
@@ -705,26 +708,26 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   }
 
   /* ---------- signals & intersection names (OpenStreetMap via Overpass) ---------- */
-  var OSM_EP = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  var OSM_EP = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
   function osmKey() { var r = S.route; return 'kmlnavi.osm.' + r.name + '|' + Math.round(r.total) + '|' + r.pts.length; }
   function loadOSM(force) {
     var id = ++S.osmReq, c = null;
     if (!force) try { c = JSON.parse(localStorage.getItem(osmKey()) || 'null'); } catch (e) { c = null; }
-    if (c && c.v === 1 && Date.now() - c.t < 30 * 864e5) { applyOSM(c.n, c.t); return; }
+    if (c && c.v === 1 && c.n && c.n.length && Date.now() - c.t < 30 * 864e5) { S.osm = { state: 'loading', quiet: true }; applyOSM(c.n, c.t); return; }
     if (typeof fetch !== 'function') { S.osm = { state: 'err', clusters: [] }; osmState(); return; }
-    var qs = KN.osmQueries(S.route, 400), all = [], seen = {}, i = 0;
+    var qs = KN.osmQueries(S.route, 150), all = [], seen = {}, i = 0;
     S.osm = { state: 'loading', clusters: [], part: 0, parts: qs.length }; osmState();
     (function next() {
       if (id !== S.osmReq) return;
       if (i >= qs.length) {
         var t = Date.now();
-        try { localStorage.setItem(osmKey(), JSON.stringify({ v: 1, t: t, n: all })); } catch (e) {}
+        if (all.length) try { localStorage.setItem(osmKey(), JSON.stringify({ v: 1, t: t, n: all })); } catch (e) {}
         applyOSM(all, t); return;
       }
       S.osm.part = i; osmState();
       overpass(qs[i], 0, function (err, els) {
         if (id !== S.osmReq) return;
-        if (err) { S.osm = { state: 'err', clusters: [] }; osmState(); return; }
+        if (err) { S.osm = { state: 'err', clusters: [], why: err.why || [] }; osmState(); toast('信号・交差点名を取得できませんでした'); return; }
         els.forEach(function (el) {
           if (el.type !== 'node' || seen[el.id]) return; seen[el.id] = 1;
           var n = KN.osmNode(el);
@@ -734,27 +737,37 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       });
     })();
   }
-  function overpass(q, ep, cb) {
-    if (ep >= OSM_EP.length) { cb(new Error('overpass')); return; }
-    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
-    var to = setTimeout(function () { if (ctl) ctl.abort(); }, 60000);
+  function overpass(q, ep, cb, why, again) {
+    why = why || [];
+    if (ep >= OSM_EP.length) { var e = new Error('overpass'); e.why = why; cb(e); return; }
+    var host = OSM_EP[ep].split('/')[2].split('.').slice(-2, -1)[0];
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, timedOut = false;
+    var to = setTimeout(function () { timedOut = true; if (ctl) ctl.abort(); }, 45000);
+    function fail(code) {
+      clearTimeout(to);
+      if (code === '429' && !again) { setTimeout(function () { overpass(q, ep, cb, why, true); }, 5000); return; }
+      why.push(host + ' ' + code); overpass(q, ep + 1, cb, why);
+    }
     fetch(OSM_EP[ep], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
-      .then(function (res) { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
-      .then(function (j) {
-        clearTimeout(to);
-        if (!j || !Array.isArray(j.elements) || (j.remark && /error|timed out|out of memory/i.test(j.remark))) throw new Error('remark');
-        cb(null, j.elements);
-      })
-      .catch(function () { clearTimeout(to); overpass(q, ep + 1, cb); });
+      .then(function (res) {
+        if (!res.ok) { fail(String(res.status)); return; }
+        return res.json().then(function (j) {
+          if (!j || !Array.isArray(j.elements)) { fail('bad'); return; }
+          if (j.remark && /error|timed out|out of memory/i.test(j.remark)) { fail('remark'); return; }
+          clearTimeout(to); cb(null, j.elements);
+        }, function () { fail('json'); });
+      }, function () { fail(timedOut ? 'timeout' : 'net'); });
   }
   function applyOSM(arr, t) {
     var nodes = (arr || []).map(function (a) { return { lat: a[0], lon: a[1], sig: !!a[2], name: a[3] || '', kana: a[4] || '' }; });
     var cl = KN.clusterNodes(KN.snapNodes(S.route, nodes, 25), 45);
     KN.attachTurns(S.turns, cl, 35);
-    S.osm = { state: 'ok', clusters: cl, t: t };
+    var quiet = S.osm && S.osm.quiet;
+    S.osm = { state: 'ok', clusters: cl, t: t, quiet: quiet };
     rebuildSigs();
     if (!S.osmAttr && S.attr && S.attr.addAttribution) { S.attr.addAttribution('信号・交差点名 &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'); S.osmAttr = true; }
     osmState();
+    if (!S.osm.quiet) toast('信号 ' + S.sigS.length + 'か所・交差点名 ' + cl.filter(function (c) { return c.name; }).length + 'か所を取り込みました');
     if (S.mode === 'route') routeScreen();
     if (!$('turnsSheet').hidden) openTurns();
     if (!$('editSheet').hidden && S.ei != null) openEdit(S.ei);
@@ -771,16 +784,27 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     S.sigS = a.sort(function (x, y) { return x - y; });
     drawSignals();
   }
-  function osmState() {
-    var el = $('osmState'); if (!el) return;
-    var o = S.osm, h = '';
-    if (o.state === 'loading') h = '信号と交差点名を地図データから取得中…' + (o.parts > 1 ? '（' + (o.part + 1) + '/' + o.parts + '）' : '');
-    else if (o.state === 'ok') {
+  function osmText() {
+    var o = S.osm;
+    if (o.state === 'loading') return '信号と交差点名を地図データから取得中…' + (o.parts > 1 ? '（' + (o.part + 1) + '/' + o.parts + '）' : '');
+    if (o.state === 'ok') {
       var nn = S.turns.filter(function (t, k) { return !!tinfo(k).name; }).length;
-      h = '信号 ' + S.sigS.length + 'か所・交差点名あり ' + nn + '/' + S.turns.length + '（OpenStreetMap）';
-    } else if (o.state === 'err') h = '信号と交差点名を取得できませんでした（案内はできます）。<button id="osmRetry" class="mini">もう一度</button>';
-    el.innerHTML = h; el.hidden = !h;
-    var b = $('osmRetry'); if (b) b.addEventListener('click', function () { loadOSM(true); });
+      return '信号 ' + S.sigS.length + 'か所・交差点名あり ' + nn + '/' + S.turns.length + '（OpenStreetMap）';
+    }
+    if (o.state === 'err') {
+      var w = (o.why || []).join(' ');
+      var r = /net/.test(w) && !/\d{3}/.test(w) ? '通信できませんでした' : /429/.test(w) ? 'サーバーが混んでいます' : /timeout|504/.test(w) ? '時間切れになりました' : '';
+      return '信号と交差点名を取得できませんでした' + (r ? '（' + r + '）' : '') + '。案内はできます。<button class="mini osmRetry">もう一度</button>' + (w ? '<br><span class="why">' + esc(w) + '</span>' : '');
+    }
+    return '';
+  }
+  function osmState() {
+    var h = osmText();
+    ['osmState', 'osmState2'].forEach(function (id) {
+      var el = $(id); if (!el) return;
+      el.innerHTML = h; el.hidden = !h;
+      Array.prototype.forEach.call(el.querySelectorAll('.osmRetry'), function (b) { b.addEventListener('click', function () { loadOSM(true); }); });
+    });
   }
   function tinfo(k) {
     var t = S.turns[k], m = (S.memo && S.memo[k]) || {}, o = (t && t.osm) || null;
@@ -994,10 +1018,11 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   /* ---------- turn list & editor ---------- */
   function openTurns() {
     show('routeSheet', false); show('editSheet', false); show('turnsSheet', true);
+    osmState();
     var h = '';
     S.turns.forEach(function (t, i) {
       var mt = memoText(i), w = tinfo(i);
-      var xl = (w.sig ? '<span class="tsig">' + sigSVG(22) + '信号</span>' : '') + (w.name ? '<span class="txn">' + esc(w.name) + '</span>' : (S.osm.state === 'loading' ? '' : '<span class="tnn">交差点名なし</span>'));
+      var xl = (w.sig ? '<span class="tsig">' + sigSVG(22) + '信号</span>' : '') + (w.name ? '<span class="txn">' + esc(w.name) + '</span>' : (S.osm.state === 'loading' ? '' : S.osm.state === 'ok' ? '<span class="tnn">交差点名なし</span>' : '<span class="tnn">地図データ未取得</span>'));
       h += '<button class="trow" data-i="' + i + '"><span class="tno">' + (i + 1) + '</span><span class="tic">' + arrowSVG(t.deg, false, '#111318', 30) + '</span><span class="tkm">' + fmt(t.s) + '</span><span class="tdir"><b>' + word(t.dir) + '</b>' +
         (xl ? '<span class="tx">' + xl + '</span>' : '') + (mt ? '<small>' + esc(mt) + '</small>' : '<small class="none">車線 未設定</small>') + '</span></button>';
     });
