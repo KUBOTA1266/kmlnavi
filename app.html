@@ -149,6 +149,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   <div class="stack">
     <button id="openBtn" class="btn primary">KMLファイルを開く</button>
     <button id="lastBtn" class="btn" hidden>前回のルート：<span id="lastName"></span></button>
+    <a class="btn" href="create.html" style="text-decoration:none;color:inherit">地図でルートを作る（試作）</a>
   </div>
   <div class="notes">
     <p>ルートメーカーなどで書き出した、線の入ったKMLを使います。</p>
@@ -1462,6 +1463,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     ro.observe($('bar')); ro.observe($('nav'));
   }
   bind();
+  if (location.hash === '#last') { var l0 = stored(); try { history.replaceState(null, '', location.pathname); } catch (e) {} if (l0) openText(l0.text, l0.name); }
   initMap();
   startScreen();
 })();
