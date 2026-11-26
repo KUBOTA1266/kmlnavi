@@ -412,7 +412,9 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   }
   function search(r, p, s0, s1, heading, preferFirst, sref) {
     var i0 = idxAt(r, Math.max(0, s0)), i1 = Math.min(r.pts.length - 2, idxAt(r, Math.min(r.total, s1)) + 1);
-    var best = null, first = null;
+    // preferFirst: when the route passes the same place more than once, use the earliest pass,
+    // but the nearest point of that pass (not the first point that comes within 40 m, which is ~40 m behind the car)
+    var best = null, first = null, run = null;
     for (var i = i0; i <= i1; i++) {
       var a = r.pts[i], b = r.pts[i + 1];
       if (heading != null && Math.abs(angDiff(heading, r.brg[i])) > 100) continue;
@@ -424,9 +426,12 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
       var res = { d: d, s: a.s + (b.s - a.s) * t, i: i, conn: r.conn[i], lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
       res.score = d + (sref != null ? 0.03 * Math.abs(res.s - sref) : 0);
       if (!best || res.score < best.score) best = res;
-      if (preferFirst && !first && d <= 40) first = res;
+      if (preferFirst && !first) {
+        if (d <= 40) { if (!run || d < run.d) run = res; }
+        else if (run) first = run;
+      }
     }
-    return first || best;
+    return first || run || best;
   }
 
   function Matcher(r) { this.r = r; this.s = null; this.off = false; this.bad = 0; this.good = 0; this.last = null; this.offMeters = 0; this.lastT = 0; this.locked = false; }
