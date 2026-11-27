@@ -81,6 +81,16 @@ h2{font-size:clamp(26px,3.2vw,34px);line-height:1.25;margin:0 0 10px;text-wrap:b
 .faq summary::after{content:"＋";position:absolute;right:4px;top:12px;color:var(--sign2);font-size:20px}
 .faq details[open] summary::after{content:"－"}
 .faq p{margin:0 0 16px;color:var(--sub)}
+.promo{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:clamp(20px,4vw,48px);align-items:center;background:var(--night);color:#fff;border-radius:18px;padding:clamp(24px,4vw,44px)}
+.promo .kick{display:inline-block;font-size:13.5px;font-weight:700;color:var(--night);background:var(--memo);border-radius:999px;padding:3px 12px;margin:0 0 12px}
+.promo h2{color:#fff}
+.promo p{color:#cdd8ec;margin:0 0 14px}
+.promo ul{margin:0 0 22px;padding-left:1.2em;color:#dfe7f6}
+.promo li{margin:4px 0}
+.promo .btn.main{background:var(--memo);color:var(--night)}
+.promo .btn.main:hover{background:#ffe27a}
+.promo svg{width:100%;max-width:340px;height:auto;justify-self:center}
+@media (max-width:820px){.promo{grid-template-columns:minmax(0,1fr)}.promo svg{order:-1;max-width:260px}}
 .endcta{text-align:center}
 .endcta .cta{justify-content:center}
 .endcta .btn.ghost{border-color:var(--line);color:var(--ink)}
@@ -101,6 +111,7 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
     <nav class="links" aria-label="ページ内">
       <a class="hide" href="#how">使い方</a>
       <a class="hide" href="#faq">よくある質問</a>
+      <a class="hide" href="#turn">曲がれるか確認</a>
       <a class="open" href="app.html">ナビを開く</a>
     </nav>
   </div>
@@ -203,6 +214,40 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
   </div>
 </section>
 
+<section class="band" id="turn" aria-labelledby="t">
+  <div class="wrap">
+    <div class="promo">
+      <div>
+        <p class="kick">rigvantの姉妹ツール</p>
+        <h2 id="t">その曲がり角、<br>本当に曲がれますか？</h2>
+        <p>KMLナビは「決めた線どおり」に案内します。だからこそ、線を引く前に、大きな車がその交差点を曲がれるかを確かめておくことが大切です。</p>
+        <ul>
+          <li>トレーラー・トラック・ラフタークレーン・SPMTの旋回軌跡を作図</li>
+          <li>はみ出す場所を、走る前に確認</li>
+          <li>最初の1か月は無料で試せます</li>
+        </ul>
+        <div class="cta">
+          <a class="btn main" href="https://rigvant.com/#turn">旋回軌跡チェッカーを見る</a>
+        </div>
+      </div>
+      <svg viewBox="0 0 340 260" aria-hidden="true">
+        <rect x="0" y="0" width="340" height="260" rx="16" fill="#0d1a33"/>
+        <path d="M120 260 V150 Q120 110 160 110 H340" fill="none" stroke="#3a4a66" stroke-width="64"/>
+        <path d="M120 260 V150 Q120 110 160 110 H340" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2" stroke-dasharray="10 10"/>
+        <path d="M96 260 V160 Q96 84 172 80 H340 V140 H186 Q150 140 150 176 V260 Z" fill="#ffd84d" fill-opacity=".14"/>
+        <path d="M96 260 V160 Q96 84 172 80 H340" fill="none" stroke="#ffd84d" stroke-width="3"/>
+        <path d="M150 260 V176 Q150 140 186 140 H340" fill="none" stroke="#ffd84d" stroke-width="3"/>
+        <circle cx="104" cy="104" r="10" fill="#e5322d"/>
+        <path d="M104 98 V106 M104 110 V110.5" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+        <g transform="translate(238 110)">
+          <rect x="-40" y="-13" width="80" height="26" rx="4" fill="#1d5fc4" stroke="#fff" stroke-width="2"/>
+          <rect x="44" y="-11" width="22" height="22" rx="4" fill="#fff"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
 <section class="band" aria-labelledby="c">
   <div class="wrap">
     <div class="caution">
@@ -241,7 +286,7 @@ footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
     <p class="intro" style="margin-left:auto;margin-right:auto">手元のKMLを開いて「デモ走行で試す」を押すだけで、案内の出方を確かめられます。</p>
     <div class="cta">
       <a class="btn main" href="app.html">無料でナビを開く</a>
-      <a class="btn ghost" href="https://rigvant.com/">旋回軌跡チェッカー（rigvant）</a>
+      <a class="btn ghost" href="https://rigvant.com/#turn">曲がれるかは旋回軌跡チェッカーで（1か月無料）</a>
     </div>
   </div>
 </section>

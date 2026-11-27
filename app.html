@@ -29,6 +29,9 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:54px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);font-size:17px;font-weight:600;padding:0 16px}
 .btn.primary{background:var(--sign);border-color:var(--sign);color:#fff}
 .btn.link{border:none;background:none;color:var(--sign);min-height:44px;font-size:15px;text-decoration:none}
+.promo{display:block;margin-top:14px;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);text-decoration:none;color:inherit;line-height:1.5}
+.promo b{display:block;color:var(--sign);font-size:15.5px}
+.promo span{font-size:13.5px;color:var(--sub)}
 .free{display:inline-block;vertical-align:middle;font-size:13px;font-weight:700;letter-spacing:0;color:#fff;background:var(--sign);border-radius:6px;padding:3px 8px;margin-left:6px}
 .btn:focus-visible,.chip:focus-visible,.fab:focus-visible,select:focus-visible{outline:3px solid #ffb400;outline-offset:2px}
 .sheet{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--bg);border-radius:18px 18px 0 0;padding:20px 18px calc(16px + var(--safe-b));box-shadow:0 -6px 24px rgba(0,0,0,.18);max-height:88dvh;overflow:auto}
@@ -171,6 +174,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     <button id="demoBtn" class="btn">デモ走行で試す</button>
     <button id="turnsBtn" class="btn">曲がり角と車線の設定</button>
     <button id="openBtn2" class="btn link">別のKMLを開く</button>
+    <a class="promo" href="https://rigvant.com/#turn" target="_blank" rel="noopener"><b>大きな車で曲がれるか心配な角は？ →</b><span>旋回軌跡チェッカーで、走る前に確認できます（1か月無料）</span></a>
   </div>
 </section>
 
@@ -198,6 +202,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
   <input id="eNote" type="text" maxlength="40" placeholder="例：歩道橋の先、右折レーン2本" autocomplete="off">
   <p id="eSaved" class="saved" aria-live="polite"></p>
   <div class="row2"><button id="ePrev" class="btn">前の曲がり角</button><button id="eNext" class="btn">次の曲がり角</button></div>
+  <a class="promo" href="https://rigvant.com/#turn" target="_blank" rel="noopener"><b>この角、曲がれますか？ →</b><span>旋回軌跡チェッカーで、車の旋回軌跡を作図して確かめられます（1か月無料）</span></a>
   <button id="eClear" class="btn link">この曲がり角の設定を消す</button>
 </section>
 

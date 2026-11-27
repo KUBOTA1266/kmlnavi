@@ -7,6 +7,7 @@
 //   HERE_API_KEY       HERE API key
 //   LICENSE_SECRET     any long random text (signs the purchase codes)
 //   TRIAL_DAYS         optional, free days for new subscribers (default 30)
+//   FIRST_CHARGE_FROM  optional, no first charge before this time (default 2027-01-01T00:00:00+09:00)
 //   FREE_DAILY         optional, HERE calls per day for free users (default 300)
 // Optional KV binding KN_KV: counts free HERE calls per day.
 
@@ -96,8 +97,13 @@ async function api(request, env, url) {
         success_url: origin + '/create.html?paid={CHECKOUT_SESSION_ID}', cancel_url: origin + '/create.html',
         locale: 'ja', allow_promotion_codes: 'true', 'metadata[app]': 'kmlnavi', 'subscription_data[metadata][app]': 'kmlnavi'
       };
-      const td = parseInt(env.TRIAL_DAYS || '30', 10);
-      if (td > 0) prm['subscription_data[trial_period_days]'] = String(td);
+      // free trial, but the first charge is never before FIRST_CHARGE_FROM (default 1 Jan 2027, Japan time),
+      // so nobody who signs up in 2026 is billed in 2026
+      const td = Math.max(0, parseInt(env.TRIAL_DAYS || '30', 10) || 0);
+      const from = Date.parse(env.FIRST_CHARGE_FROM || '2027-01-01T00:00:00+09:00');
+      let end = Date.now() + td * 86400000;
+      if (isFinite(from) && end < from) end = from;
+      if (end > Date.now() + 48 * 3600000) prm['subscription_data[trial_end]'] = String(Math.ceil(end / 1000));
       const s = await stripe(env, 'checkout/sessions', prm);
       return json({ url: s.url });
     }
