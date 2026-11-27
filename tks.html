@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>許可証データから線を作る（試作）｜KMLナビ</title>
+<meta name="theme-color" content="#020a1c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b4aa2'/%3E%3Cpath d='M24 54V30h18' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M38 20l12 10-12 10z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--night:#020a1c;--sign:#0b4aa2;--sign2:#1d5fc4;--ink:#101521;--sub:#475066;--line:#d8dee8;--soft:#eef2f7;--ok:#0b4aa2;--man:#0a7d4f;--miss:#c4161c;--skip:#9aa3b2}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:#fff;color:var(--ink);font:16px/1.6 "BIZ UDPGothic",-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif}
+.bar{display:flex;align-items:center;gap:10px;min-height:56px;padding:6px max(4vw,14px);background:var(--night);color:#fff}
+.bar a{display:flex;align-items:center;gap:8px;color:#fff;text-decoration:none;font-weight:700}
+.bar svg{width:30px;height:30px;flex:none}
+.bar .t{font-weight:700;font-size:16px;line-height:1.3}
+.bar .beta{margin-left:auto;font-size:12px;font-weight:700;background:#ffd84d;color:var(--night);border-radius:999px;padding:2px 10px;flex:none}
+#map{position:sticky;top:0;height:42vh;min-height:240px;z-index:1;background:#e9edf2}
+.panel{padding:14px max(4vw,14px) 40px;max-width:760px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 18px;border-radius:12px;border:2px solid transparent;font:inherit;font-weight:700;font-size:16px;cursor:pointer;background:var(--sign2);color:#fff}
+.btn.sub{background:#fff;color:var(--sign);border-color:var(--line)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.row:focus-visible{outline:3px solid #ffb400;outline-offset:2px}
+.open{width:100%}
+.note{font-size:13.5px;color:var(--sub);margin:10px 0 0}
+.info{margin:16px 0 8px;padding:12px 14px;background:var(--soft);border-radius:12px;font-size:15px}
+.info b{display:block}
+select{font:inherit;font-size:16px;min-height:44px;width:100%;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff}
+.hint{font-size:14px;color:var(--sub);margin:12px 0 6px}
+.list{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 6px;border-top:1px solid var(--line);cursor:pointer}
+.row:last-child{border-bottom:1px solid var(--line)}
+.row.sel{background:#fff6cc}
+.num{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;background:var(--ok)}
+.st-manual .num{background:var(--man)}.st-miss .num{background:var(--miss)}.st-skip .num{background:var(--skip)}.st-wait .num{background:var(--skip)}
+.row b{display:block;font-size:16px;line-height:1.35;word-break:break-all}
+.row small{display:block;font-size:13px;color:var(--sub)}
+.row .road{color:var(--sign);font-weight:700}
+.st-miss small.s{color:var(--miss);font-weight:700}
+.use{font:inherit;font-size:13px;min-height:36px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.acts .wide{grid-column:1/-1}
+.dist{font-weight:700;margin:12px 0 0}
+.sum{margin:14px 0 10px;padding:12px 14px;border-radius:12px;background:#fff6cc;font-weight:700;font-size:15px}
+.warn{margin-top:18px;border:2px solid #8a1d12;border-radius:12px;padding:12px 14px;font-size:14px}
+.warn b{color:#8a1d12}
+.warn ul{margin:6px 0 0;padding-left:1.2em}
+.pin{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pin span{transform:rotate(45deg);color:#fff;font:700 12px/1 sans-serif}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111318;color:#fff;padding:12px 16px;border-radius:12px;font-size:15px;max-width:90vw;z-index:9;display:none}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="/" aria-label="KMLナビ トップ"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b4aa2"/><path d="M24 54V30h18" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 20l12 10-12 10z" fill="#fff"/></svg></a>
+  <span class="t">許可証データから線を作る</span>
+  <span class="beta">試作</span>
+</header>
+<div id="map"></div>
+<div class="panel">
+  <button class="btn open" id="openBtn">許可証の bin ファイルを開く</button>
+  <input type="file" id="file" hidden>
+  <p class="note">特車の受付システムでダウンロードした許可証データ（lzh）を解凍すると出てくる「.bin」のファイルです。許可が下りた経路と、出発地・目的地の位置が入っています。<br>ファイルはこのスマホの中で読むだけです。位置を探すため、住所・交差点名・座標だけを地図のサービスに送ります（会社名などは送りません）。</p>
+
+  <div id="body" hidden>
+    <div class="info" id="info"></div>
+    <p class="sum" id="sum" hidden></p>
+    <div class="acts" style="margin-top:0">
+      <button class="btn sub" id="nextMiss" hidden>次の赤い点へ</button>
+      <button class="btn sub" id="retry" hidden>もう一度探す</button>
+    </div>
+    <p class="hint">青＝自動で見つかった　赤＝見つからない　緑＝手で置いた　灰＝使わない。<br>行を押してから地図をタップすると、その点の位置を置き直せます。</p>
+    <ol class="list" id="list"></ol>
+    <p class="dist" id="dist" hidden></p>
+    <div class="acts">
+      <button class="btn wide" id="draw">道なりで線を引く</button>
+      <button class="btn" id="nav" disabled>ナビで走る</button>
+      <button class="btn sub" id="save" disabled>KMLを保存</button>
+    </div>
+    <div class="warn">
+      <b>必ず確かめてください</b>
+      <ul>
+        <li>線は普通車の道順（OSRM）でつないでいます。上の経路表と同じ道を通っているか、地図で確かめてください。</li>
+        <li>交差点の位置は、交差点名からOpenStreetMapで探した目安です。</li>
+        <li>通る道は、許可証と現地の標識を優先してください。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/*PARSE-START*/
+var TKS = (function () {
+  function findBytes(u8, s, from) {
+    var b = []; for (var k = 0; k < s.length; k++) b.push(s.charCodeAt(k));
+    outer: for (var i = from || 0; i <= u8.length - b.length; i++) {
+      for (var j = 0; j < b.length; j++) if (u8[i + j] !== b[j]) continue outer;
+      return i;
+    }
+    return -1;
+  }
+  function csv(line) { var out = [], re = /"([^"]*)"/g, m; while ((m = re.exec(line))) out.push(m[1]); return out; }
+  function clean(s) { return String(s || '').replace(/\?/g, ' ').replace(/[\s　]+/g, ' ').replace(/国道 (?=\d)/, '国道').replace(/県 (?=\d)/, '県').replace(/市道 /, '市道').trim(); }
+  function nodeName(s) { var p = String(s || '').split('＃'); return clean(p[0]); }
+  function num(s) { var n = parseFloat(String(s || '').replace(/\?/g, '')); return isFinite(n) ? n : null; }
+  function parse(u8) {
+    var i = findBytes(u8, 'TOKUSYA_SINSEI'); if (i < 0) return null;
+    var j = findBytes(u8, 'SINSEI_DATA_END', i); if (j < 0) j = u8.length;
+    var text = new TextDecoder('euc-jp').decode(u8.subarray(i, j));
+    var routes = {}, order = [];
+    function R(no) { if (!routes[no]) { routes[no] = { no: no, from: '', to: '', fromLL: null, toLL: null, segs: [] }; order.push(no); } return routes[no]; }
+    text.split(/\r?\n/).forEach(function (line) {
+      var f = csv(line); if (!f.length) return;
+      if (f[0] === 'K001') {
+        var r = R(f[2]); r.from = clean(f[9]); r.to = clean(f[10]);
+        var a = num(f[5]), b = num(f[6]), c = num(f[7]), d = num(f[8]);
+        if (a && b) r.fromLL = [b, a];
+        if (c && d) r.toLL = [d, c];
+      } else if (f[0] === 'K002') {
+        R(f[2]).segs.push({ seq: +f[3], a: f[9], b: f[10], road: clean(f[11]), an: nodeName(f[12]), bn: nodeName(f[13]) });
+      }
+    });
+    return order.map(function (no) { var r = routes[no]; r.segs.sort(function (x, y) { return x.seq - y.seq; }); return r; }).filter(function (r) { return r.segs.length; });
+  }
+  // 2次メッシュ（交差点番号の頭6けた）→ [南, 西, 北, 東]
+  function meshBox(code) {
+    var c = String(code || ''); if (!/^\d{6}/.test(c)) return null;
+    var p = +c.slice(0, 2), q = +c.slice(2, 4), r = +c[4], s = +c[5];
+    var s0 = p / 1.5 + r * 5 / 60, w0 = q + 100 + s * 7.5 / 60;
+    return [s0, w0, s0 + 5 / 60, w0 + 7.5 / 60];
+  }
+  function points(r) {
+    var pts = [{ kind: 'addr', name: '出発地', addr: r.from, pos: r.fromLL, src: r.fromLL ? 'file' : '' }];
+    r.segs.forEach(function (sg, k) {
+      var last = pts[pts.length - 1];
+      if (k === 0 || last.code !== sg.a) pts.push({ kind: 'node', code: sg.a, name: sg.an });
+      pts[pts.length - 1].road = sg.road;
+      pts.push({ kind: 'node', code: sg.b, name: sg.bn });
+    });
+    pts.push({ kind: 'addr', name: '目的地', addr: r.to, pos: r.toLL, src: r.toLL ? 'file' : '' });
+    return pts;
+  }
+  return { parse: parse, meshBox: meshBox, points: points };
+})();
+/*PARSE-END*/
+
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var OSRM = 'https://router.project-osrm.org/route/v1/driving/';
+  var OSM_EP = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  var S = { routes: [], ri: 0, pts: [], sel: -1, line: null, coords: null, marks: [], box: null, req: 0 };
+
+  var map = L.map('map', { zoomControl: true }).setView([35.0, 137.0], 8);
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a> / 交差点：&copy; OpenStreetMap contributors / ルート：OSRM' }).addTo(map);
+
+  function toast(t) { var e = $('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { e.style.display = 'none'; }, 3200); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function short(a) { var p = String(a || '').split(' '); return p.length > 1 ? p.slice(1).join(' ') : (p[0] || ''); }
+  function dist(a, b) { var R = 6371000, t = Math.PI / 180, x = (b[1] - a[1]) * t * Math.cos((a[0] + b[0]) / 2 * t), y = (b[0] - a[0]) * t; return R * Math.sqrt(x * x + y * y); }
+  function base(n) {
+    var s = String(n || '').normalize('NFKC').split(/[、,]/)[0].replace(/\(.*$/, '');
+    return s.replace(/(IC|インター|JCT|ランプ|交差点).*$/, '').replace(/[\s・]/g, '');
+  }
+  function nrm(s) { return String(s || '').normalize('NFKC').replace(/[\s・]/g, '').replace(/交差点$/, ''); }
+  // 2 = 同じ名前（IC・入口などの違いだけ）、1 = 片方がもう片方で始まる、0 = 違う
+  function nameMatch(osm, b) {
+    var o = nrm(osm); if (!o || !b) return 0;
+    if (o === b || o.replace(/(IC|インター|JCT|入口|出口|ランプ)$/, '') === b) return 2;
+    if (b.length >= 2 && o.length >= 2 && (o.indexOf(b) === 0 || b.indexOf(o) === 0)) return 1;
+    return 0;
+  }
+
+  $('openBtn').addEventListener('click', function () { $('file').click(); });
+  $('file').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    if (!/\.bin$/i.test(f.name)) { toast('許可証データの「.bin」ファイルを選んでください'); this.value = ''; return; }
+    f.arrayBuffer().then(function (buf) {
+      var routes = null;
+      try { routes = TKS.parse(new Uint8Array(buf)); } catch (e) { routes = null; }
+      if (!routes || !routes.length) { toast('このファイルからは経路を読めませんでした'); return; }
+      S.routes = routes; start(0);
+    });
+    this.value = '';
+  });
+
+  function start(ri) {
+    S.ri = ri; var r = S.routes[ri];
+    S.pts = TKS.points(r); S.sel = -1; S.req++;
+    clearLine();
+    var h = '<b>' + esc(short(r.from) || '出発地') + ' → ' + esc(short(r.to) || '目的地') + '</b>経路 ' + esc(r.no) + '：' + r.segs.length + '区間';
+    if (S.routes.length > 1) {
+      h += '<select id="rsel" aria-label="経路を選ぶ">' + S.routes.map(function (x, k) { return '<option value="' + k + '"' + (k === ri ? ' selected' : '') + '>経路 ' + esc(x.no) + '（' + x.segs.length + '区間）</option>'; }).join('') + '</select>';
+    }
+    $('info').innerHTML = h;
+    if ($('rsel')) $('rsel').addEventListener('change', function () { start(+this.value); });
+    $('body').hidden = false; $('sum').hidden = $('nextMiss').hidden = $('retry').hidden = true;
+    S.pts.forEach(function (p) {
+      if (p.kind === 'addr') p.st = p.pos ? 'ok' : 'wait';
+      else if (!p.name) { p.st = 'skip'; p.skip = true; }
+      else p.st = 'wait';
+    });
+    render(); fitAll();
+    if (used().length >= 2) draw();   // ファイルに入っている出発地・目的地の座標で、まず線を引いておく
+    lookup(S.req);
+  }
+
+  function lookup(req) {
+    var jobs = [];
+    S.pts.forEach(function (p) {
+      if (p.kind === 'addr' && !p.pos && p.addr) {
+        var q = p.addr.split(' ')[0];
+        jobs.push(fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (a) {
+          if (req !== S.req) return;
+          if (a && a[0] && a[0].geometry) { var c = a[0].geometry.coordinates; p.pos = [c[1], c[0]]; p.st = 'ok'; p.src = 'addr'; } else p.st = 'miss';
+        }).catch(function () { if (req === S.req) p.st = 'miss'; }));
+      }
+    });
+    var named = S.pts.filter(function (p) { return p.kind === 'node' && p.name && !p.pos; });
+    S.osmFail = false;
+    if (named.length) {
+      // 交差点番号の頭6けた（約10km四方）ごとに、名前つきの信号・交差点をまとめて取ってきて、名前はこちらで照らし合わせる
+      var parts = [], seen = {};
+      named.forEach(function (p) {
+        p.base = base(p.name); var b = TKS.meshBox(p.code);
+        if (!b || seen[p.code.slice(0, 6)]) return; seen[p.code.slice(0, 6)] = 1;
+        var bb = '(' + [b[0] - .01, b[1] - .01, b[2] + .01, b[3] + .01].map(function (x) { return x.toFixed(4); }).join(',') + ')';
+        parts.push('node["name"]["highway"~"^(traffic_signals|motorway_junction|crossing|stop|give_way)$"]' + bb + ';node["name"]["junction"]' + bb + ';node["name"]["crossing"="traffic_signals"]' + bb + ';');
+      });
+      var q = '[out:json][timeout:60];(' + parts.join('') + ');out body;';
+      $('sum').textContent = '交差点を探しています…（10〜30秒）'; $('sum').hidden = false;
+      jobs.push(overpass(q, 0).then(function (els) { if (req === S.req) place(els); })
+        .catch(function () { if (req === S.req) S.osmFail = true; }));
+    }
+    Promise.all(jobs).then(function () {
+      if (req !== S.req) return;
+      S.pts.forEach(function (p) { if (p.st === 'wait') p.st = 'miss'; });
+      render(); fitAll(); summary();
+      draw();
+    });
+  }
+  function overpass(q, ep, again) {
+    if (ep >= OSM_EP.length) return Promise.reject(new Error('overpass'));
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    var to = setTimeout(function () { if (ctl) ctl.abort(); }, 40000);
+    return fetch(OSM_EP[ep], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
+      .then(function (r) {
+        clearTimeout(to);
+        if (r.status === 429 && !again) return new Promise(function (ok) { setTimeout(ok, 5000); }).then(function () { return overpass(q, ep, true); });
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json().then(function (j) { return j.elements || []; });
+      })
+      .catch(function (e) { clearTimeout(to); if (e && e.message === 'overpass') throw e; return overpass(q, ep + 1); });
+  }
+  function summary() {
+    var named = S.pts.filter(function (p) { return p.kind === 'node' && p.name; });
+    var found = named.filter(function (p) { return p.pos; }).length, miss = S.pts.filter(function (p) { return p.st === 'miss'; }).length;
+    var t = S.osmFail ? '地図のサーバーが混んでいて、交差点を探せませんでした。少し待って「もう一度探す」を押してください。'
+      : '名前のある交差点 ' + named.length + 'か所のうち、' + found + 'か所を自動で置きました。';
+    if (miss) t += '赤の ' + miss + 'か所は「次の赤い点へ」を押して、地図をタップしてください（近くまで地図が動きます）。';
+    $('sum').textContent = t; $('sum').hidden = false;
+    $('nextMiss').hidden = !miss; $('retry').hidden = !S.osmFail;
+  }
+
+  function score(t) {
+    if (!t) return 0;
+    if (t.highway === 'traffic_signals' || t.highway === 'motorway_junction' || t.junction) return 3;
+    if (t.highway && t.highway !== 'bus_stop' && !t.public_transport) return 1;
+    return 0;
+  }
+  function place(els) {
+    var prev = null;
+    S.pts.forEach(function (p) {
+      if (p.pos && !p.skip) { prev = p.pos; return; }
+      if (p.kind !== 'node' || !p.name || !p.base) return;
+      var b = TKS.meshBox(p.code), ref = prev || [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+      var c = els.filter(function (e) {
+        if (!e.tags || score(e.tags) <= 0 || e.lat < b[0] - .01 || e.lat > b[2] + .01 || e.lon < b[1] - .01 || e.lon > b[3] + .01) return false;
+        e.m = nameMatch(e.tags.name, p.base); return e.m > 0;
+      });
+      if (!c.length) return;
+      c.sort(function (x, y) { return (y.m * 10 + score(y.tags)) - (x.m * 10 + score(x.tags)) || (dist(ref, [x.lat, x.lon]) - dist(ref, [y.lat, y.lon])); });
+      var best = [c[0].lat, c[0].lon], bn = c[0].tags.name, near = c.filter(function (e) { return e.tags.name === bn && dist(best, [e.lat, e.lon]) < 150; });
+      p.pos = [near.reduce(function (s, e) { return s + e.lat; }, 0) / near.length, near.reduce(function (s, e) { return s + e.lon; }, 0) / near.length];
+      p.st = 'ok'; p.src = 'osm'; prev = p.pos;
+    });
+  }
+
+  function label(p) {
+    if (p.kind === 'addr') return p.name + '：' + (p.addr || '');
+    return p.name || '（名前のない交差点）';
+  }
+  function stText(p) {
+    if (p.st === 'skip') return '使わない';
+    if (p.st === 'wait') return '探しています…';
+    if (p.st === 'miss') return '見つからない → 地図をタップして置く';
+    if (p.st === 'manual') return '手で置いた';
+    return p.src === 'file' ? 'ファイルの座標' : p.src === 'addr' ? '住所から' : '自動で見つかった';
+  }
+  function render() {
+    $('list').innerHTML = S.pts.map(function (p, i) {
+      var code = p.code ? '交差点番号 ' + esc(p.code) + '・' : '';
+      var road = i < S.pts.length - 1 ? '<small class="road">↓ ' + esc(p.road || '経路表にない区間（地図で確認）') + '</small>' : '';
+      var btn = p.kind === 'node' ? '<button class="use" data-use="' + i + '">' + (p.skip ? '使う' : '使わない') + '</button>' : '<span></span>';
+      return '<li class="row st-' + p.st + (i === S.sel ? ' sel' : '') + '" data-i="' + i + '" tabindex="0"><span class="num">' + (i + 1) + '</span><div><b>' + esc(label(p)) + '</b><small class="s">' + code + stText(p) + '</small>' + road + '</div>' + btn + '</li>';
+    }).join('');
+    marks();
+  }
+  function color(p) { return p.st === 'manual' ? '#0a7d4f' : p.st === 'miss' ? '#c4161c' : p.st === 'skip' ? '#9aa3b2' : '#0b4aa2'; }
+  function marks() {
+    S.marks.forEach(function (m) { map.removeLayer(m); }); S.marks = [];
+    S.pts.forEach(function (p, i) {
+      if (!p.pos || p.skip) return;
+      var m = L.marker(p.pos, { icon: L.divIcon({ className: '', html: '<div class="pin" style="background:' + color(p) + '"><span>' + (i + 1) + '</span></div>', iconSize: [26, 26], iconAnchor: [13, 31] }) }).addTo(map);
+      m.on('click', function () { select(i); });
+      S.marks.push(m);
+    });
+    if (S.box) { map.removeLayer(S.box); S.box = null; }
+    var p = S.pts[S.sel];
+    if (p && p.code) { var b = TKS.meshBox(p.code); if (b) S.box = L.rectangle([[b[0], b[1]], [b[2], b[3]]], { color: '#e8710a', weight: 2, dashArray: '6 6', fill: false, interactive: false }).addTo(map); }
+  }
+  function fitAll() {
+    var ll = S.pts.filter(function (p) { return p.pos && !p.skip; }).map(function (p) { return p.pos; });
+    if (S.coords) ll = ll.concat(S.coords);
+    if (ll.length) map.fitBounds(L.latLngBounds(ll), { padding: [24, 24], maxZoom: 15 });
+  }
+  function select(i) {
+    S.sel = i; render();
+    var p = S.pts[i];
+    if (p.pos && !p.skip) map.setView(p.pos, Math.max(map.getZoom(), 15));
+    else if (p.code) {
+      var b = TKS.meshBox(p.code); map.fitBounds([[b[0], b[1]], [b[2], b[3]]]);
+      // 交差点名と同じ地名が枠の中にあれば、そこまで地図を寄せる（置くのは人）
+      if (p.name) fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(base(p.name))).then(function (r) { return r.json(); }).then(function (a) {
+        if (S.sel !== i) return;
+        var hit = (a || []).map(function (x) { return x.geometry && x.geometry.coordinates; }).filter(function (c) { return c && c[1] >= b[0] && c[1] <= b[2] && c[0] >= b[1] && c[0] <= b[3]; })[0];
+        if (hit) map.setView([hit[1], hit[0]], 16);
+      }).catch(function () {});
+    }
+    toast('地図をタップすると、' + (i + 1) + '番の位置を置けます');
+  }
+  $('nextMiss').addEventListener('click', function () {
+    var n = S.pts.length;
+    for (var k = 1; k <= n; k++) { var i = (Math.max(S.sel, -1) + k) % n; if (S.pts[i].st === 'miss') { select(i); return; } }
+    summary();
+  });
+  $('retry').addEventListener('click', function () {
+    S.req++; S.pts.forEach(function (p) { if (p.st === 'miss' && p.kind === 'node') p.st = 'wait'; }); render(); lookup(S.req);
+  });
+  $('list').addEventListener('click', function (e) {
+    var u = e.target.closest('[data-use]');
+    if (u) { var p = S.pts[+u.getAttribute('data-use')]; p.skip = !p.skip; p.st = p.skip ? 'skip' : (p.pos ? (p.src === 'manual' ? 'manual' : 'ok') : 'miss'); render(); clearLine(); clearTimeout(S.redraw); S.redraw = setTimeout(draw, 700); return; }
+    var r = e.target.closest('.row'); if (r) select(+r.getAttribute('data-i'));
+  });
+  $('list').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var r = e.target.closest('.row'); if (r) select(+r.getAttribute('data-i')); } });
+  map.on('click', function (e) {
+    var p = S.pts[S.sel]; if (!p) return;
+    p.pos = [e.latlng.lat, e.latlng.lng]; p.st = 'manual'; p.src = 'manual'; p.skip = false;
+    render(); clearLine(); summary();
+    clearTimeout(S.redraw); S.redraw = setTimeout(draw, 700);
+  });
+
+  function clearLine() {
+    if (S.line) { map.removeLayer(S.line); S.line = null; }
+    S.coords = null; $('nav').disabled = $('save').disabled = true; $('dist').hidden = true;
+  }
+  function used() { return S.pts.filter(function (p) { return p.pos && !p.skip; }); }
+  function draw() {
+    var u = used(); if (u.length < 2) { toast('点が2つ以上必要です'); return; }
+    var dk = S.dk = (S.dk || 0) + 1;
+    $('draw').disabled = true; $('draw').textContent = '道を計算中…';
+    var path = u.map(function (p) { return p.pos[1].toFixed(6) + ',' + p.pos[0].toFixed(6); }).join(';');
+    fetch(OSRM + path + '?overview=full&geometries=geojson').then(function (r) { return r.json(); }).then(function (j) {
+      if (dk !== S.dk) return;
+      if (!j.routes || !j.routes[0]) throw new Error('route');
+      show(j.routes[0].geometry.coordinates.map(function (c) { return [c[1], c[0]]; }), j.routes[0].distance);
+    }).catch(function () {
+      if (dk !== S.dk) return;
+      show(u.map(function (p) { return p.pos; }), null);
+      toast('道なりの計算ができなかったので、点を直線でつなぎました');
+    }).then(function () { $('draw').disabled = false; $('draw').textContent = '道なりで線を引く'; });
+  }
+  function show(coords, m) {
+    clearLine();
+    S.coords = coords;
+    S.line = L.polyline(coords, { color: '#1546c8', weight: 6, opacity: .85 }).addTo(map);
+    $('nav').disabled = $('save').disabled = false;
+    if (m) { $('dist').textContent = '線の長さ：約 ' + (m / 1000).toFixed(1) + ' km'; $('dist').hidden = false; }
+    fitAll();
+  }
+  $('draw').addEventListener('click', draw);
+
+  function rname() { var r = S.routes[S.ri]; return (short(r.from) || '出発地') + '〜' + (short(r.to) || '目的地'); }
+  function x(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function kml() {
+    var n = rname(), out = ['<?xml version="1.0" encoding="UTF-8"?>', '<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>' + x(n) + '</name>'];
+    out.push('<Placemark><name>' + x(n) + '</name><LineString><tessellate>1</tessellate><coordinates>' + S.coords.map(function (c) { return c[1].toFixed(6) + ',' + c[0].toFixed(6) + ',0'; }).join(' ') + '</coordinates></LineString></Placemark>');
+    used().forEach(function (p) {
+      var nm = p.kind === 'addr' ? (short(p.addr) || p.name) : p.name; if (!nm) return;
+      out.push('<Placemark><name>' + x(nm) + '</name><Point><coordinates>' + p.pos[1].toFixed(6) + ',' + p.pos[0].toFixed(6) + ',0</coordinates></Point></Placemark>');
+    });
+    out.push('</Document></kml>');
+    return out.join('\n');
+  }
+  $('nav').addEventListener('click', function () {
+    try { localStorage.setItem('kmlnavi.last', JSON.stringify({ name: rname(), text: kml() })); } catch (e) { toast('保存できませんでした'); return; }
+    location.href = 'app.html#last';
+  });
+  $('save').addEventListener('click', function () {
+    var a = document.createElement('a'), url = URL.createObjectURL(new Blob([kml()], { type: 'application/vnd.google-earth.kml+xml' }));
+    a.href = url; a.download = rname().replace(/[\\/:*?"<>|\s]+/g, '_') + '.kml';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  });
+})();
+</script>
+</body>
+</html>
