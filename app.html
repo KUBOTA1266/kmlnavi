@@ -693,6 +693,9 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     S.L.casing = L.polyline(ll, { color: '#ffffff', weight: 11, opacity: 0.95, interactive: false }).addTo(S.map);
     S.L.line = L.polyline(ll, { color: '#1546c8', weight: 6, interactive: false }).addTo(S.map);
     S.L.done = L.polyline([], { color: '#9aa1ab', weight: 6, interactive: false }).addTo(S.map);
+    // the road ahead of the car, redrawn with the car: drawn last so it is never hidden
+    S.L.restC = L.polyline([], { color: '#ffffff', weight: 11, opacity: 0.95, interactive: false }).addTo(S.map);
+    S.L.rest = L.polyline([], { color: '#1546c8', weight: 6, interactive: false }).addTo(S.map);
     var g = L.layerGroup();
     S.turns.forEach(function (t) {
       L.circleMarker([t.lat, t.lon], { radius: 4, color: '#ffffff', weight: 2, fillColor: '#1546c8', fillOpacity: 1 }).bindPopup(t.dir + '（' + fmt(t.s) + '地点）').addTo(g);
@@ -1177,6 +1180,7 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
     if (S.L.me) { S.map.removeLayer(S.L.me); S.L.me = null; }
     if (S.L.gap) { S.map.removeLayer(S.L.gap); S.L.gap = null; }
     if (S.L.done) S.L.done.setLatLngs([]);
+    if (S.L.rest) { S.L.rest.setLatLngs([]); S.L.restC.setLatLngs([]); }
     routeScreen();
     if (S.map && S.L.line) S.map.fitBounds(S.L.line.getBounds(), { padding: [30, 30] });
   }
@@ -1343,6 +1347,15 @@ input[type=text]{width:100%;min-height:48px;border-radius:10px;border:1.5px soli
         while (a.dk < P.length && P[a.dk].s <= sd) { a.done.push([P[a.dk].lat, P[a.dk].lon]); a.dk++; }
         a.doneS = sd;
         S.L.done.setLatLngs(a.done.concat([ll]));
+        // next 5 km ahead, on top of everything (the full blue line can go stale on some phones,
+        // and the grey travelled line can cover it where the route uses the same road twice)
+        if (S.L.rest) {
+          if (a.restK !== a.dk || !a.rest) { a.rest = []; for (var k2 = a.dk; k2 < P.length && P[k2].s <= sd + 5000; k2++) a.rest.push([P[k2].lat, P[k2].lon]); a.restK = a.dk; }
+          var ahead = [ll].concat(a.rest);
+          S.L.restC.setLatLngs(ahead); S.L.rest.setLatLngs(ahead);
+        }
+        // re-fit the whole blue line to the view now and then
+        if (now - (a.tRe || 0) > 2000) { a.tRe = now; if (S.L.casing) S.L.casing.redraw(); if (S.L.line) S.L.line.redraw(); }
       }
       if (sd != null && S.pn != null && !$('nav').classList.contains('off')) {
         var dd = S.turns[S.pn].s - sd;
