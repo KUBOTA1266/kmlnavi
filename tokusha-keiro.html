@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>特殊車両の許可経路を、ナビで間違えずに走る方法（KMLの作り方）｜KMLナビ</title>
+<meta name="description" content="普通のカーナビは速い道を探して勝手にルートを引き直すため、特殊車両の許可経路を走るのには向きません。許可経路をKMLの線にして、その線どおりにだけ案内するナビで走る方法を、KMLの作り方から順に説明します。">
+<link rel="canonical" href="https://navi.rigvant.com/tokusha-keiro">
+<meta name="theme-color" content="#020a1c">
+<meta property="og:title" content="特殊車両の許可経路を、ナビで間違えずに走る方法（KMLの作り方）">
+<meta property="og:description" content="許可経路をKMLの線にして、その線だけを正解にするナビで走る。線の作り方から、照らし合わせ、走り方まで。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://navi.rigvant.com/tokusha-keiro">
+<meta property="og:site_name" content="KMLナビ by rigvant">
+<meta property="og:locale" content="ja_JP">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b4aa2'/%3E%3Cpath d='M24 54V30h18' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M38 20l12 10-12 10z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "特殊車両の許可経路を、ナビで間違えずに走る方法（KMLの作り方）",
+  "description": "許可経路をKMLの線にして、その線どおりにだけ案内するナビで走る方法を、KMLの作り方から順に説明します。",
+  "inLanguage": "ja",
+  "datePublished": "2026-11-28",
+  "dateModified": "2026-11-28",
+  "author": { "@type": "Organization", "name": "rigvant", "url": "https://rigvant.com/" },
+  "publisher": { "@type": "Organization", "name": "rigvant", "url": "https://rigvant.com/" },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://navi.rigvant.com/tokusha-keiro" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "KMLナビ", "item": "https://navi.rigvant.com/" },
+    { "@type": "ListItem", "position": 2, "name": "特殊車両の許可経路を、ナビで間違えずに走る方法", "item": "https://navi.rigvant.com/tokusha-keiro" }
+  ]
+}
+</script>
+<style>
+:root{color-scheme:light dark;--night:#020a1c;--sign:#0b4aa2;--sign2:#1d5fc4;--bg:light-dark(#ffffff,#0b1220);--soft:light-dark(#eef2f7,#121c2e);--ink:light-dark(#101521,#e8edf5);--sub:light-dark(#475066,#a9b4c6);--line:light-dark(#d8dee8,#25324a);--warn:light-dark(#8a1d12,#ff9b8a);--memo:#ffd84d;--link:light-dark(#0b4aa2,#8db8ff)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.85 "BIZ UDPGothic",-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;overflow-x:clip}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 max(5vw,18px)}
+.top{background:var(--night);color:#fff;overflow:hidden}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:20px}
+.brand small{font-weight:400;font-size:13px;color:#a9b8d6}
+.mark{width:34px;height:34px;flex:none}
+.links{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.links a{text-decoration:none;font-size:15px;padding:10px 12px;border-radius:10px;color:#dfe7f6}
+.links a:hover{background:rgba(255,255,255,.08)}
+.links a.open{background:#fff;color:var(--night);font-weight:700}
+@media (max-width:640px){.links a.hide{display:none}}
+.head{max-width:820px;padding-top:clamp(22px,5vw,56px);padding-bottom:clamp(30px,5vw,60px)}
+.crumb{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-wrap:wrap;gap:4px 8px;font-size:13.5px;color:#a9b8d6}
+.crumb li+li::before{content:"›";margin-right:8px}
+.crumb a{color:#dfe7f6}
+h1{font-size:clamp(28px,4.4vw,42px);line-height:1.3;margin:0 0 16px;letter-spacing:.01em;text-wrap:balance}
+.lede{font-size:clamp(16.5px,1.6vw,18px);color:#cdd8ec;margin:0 0 14px}
+.meta{font-size:13.5px;color:#a9b8d6;margin:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:54px;padding:0 24px;border-radius:12px;font-weight:700;font-size:17px;text-decoration:none;border:2px solid transparent}
+.btn.main{background:var(--sign2);color:#fff}
+.btn.main:hover{background:#2a6fd8}
+.btn.ghost{border-color:var(--line);color:var(--ink)}
+.btn:focus-visible,.links a:focus-visible,a:focus-visible{outline:3px solid #ffb400;outline-offset:3px}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.art{max-width:820px;padding-top:clamp(28px,5vw,56px);padding-bottom:clamp(28px,5vw,56px)}
+.art p{margin:0 0 14px}
+.art a{color:var(--link)}
+.art ul,.art ol{margin:0 0 16px;padding-left:1.4em}
+.art li{margin:4px 0}
+.toc{background:var(--soft);border-radius:14px;padding:18px clamp(16px,3vw,26px);margin:0 0 8px}
+.toc b{display:block;margin-bottom:4px}
+.toc ol{margin:0}
+.toc a{color:var(--ink)}
+section.sec{padding-top:clamp(28px,4vw,44px)}
+h2{font-size:clamp(23px,2.8vw,29px);line-height:1.35;margin:0 0 14px;text-wrap:balance;display:flex;gap:12px;align-items:flex-start}
+h2 .no{flex:none;min-width:40px;height:40px;padding:0 8px;border-radius:10px;background:var(--sign);color:#fff;font-size:17px;display:flex;align-items:center;justify-content:center;margin-top:-1px}
+h3{font-size:19px;line-height:1.45;margin:22px 0 8px}
+.lead{font-weight:700}
+.box{border-left:5px solid var(--sign2);background:var(--soft);border-radius:0 12px 12px 0;padding:14px 18px;margin:0 0 16px}
+.box p:last-child,.box ul:last-child,.box ol:last-child{margin-bottom:0}
+.memo{border-left-color:var(--memo)}
+.btnl{display:inline-block;font-weight:700;padding:0 .35em;border:1px solid var(--line);border-radius:6px;background:var(--bg);white-space:nowrap}
+figure{margin:6px 0 18px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:14px;color:var(--sub);margin-top:8px}
+.check{list-style:none;padding-left:0 !important}
+.check li{position:relative;padding-left:34px;margin:8px 0}
+.check li::before{content:"";position:absolute;left:0;top:.28em;width:22px;height:22px;border:2.5px solid var(--sign2);border-radius:6px}
+.caution{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:start;border:2px solid var(--warn);border-radius:14px;padding:22px clamp(16px,3vw,28px)}
+.caution svg{width:44px;height:44px}
+.caution h2{color:var(--warn);display:block}
+.caution ul{margin:8px 0 0}
+.promo{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:clamp(20px,4vw,40px);align-items:center;background:var(--night);color:#fff;border-radius:18px;padding:clamp(22px,4vw,40px)}
+.promo .kick{display:inline-block;font-size:13.5px;font-weight:700;color:var(--night);background:var(--memo);border-radius:999px;padding:3px 12px;margin:0 0 12px}
+.promo h2{color:#fff;display:block}
+.promo p{color:#cdd8ec}
+.promo .spec{font-size:14.5px;border-top:1px solid rgba(255,255,255,.2);padding-top:12px}
+.promo .btn.main{background:var(--memo);color:var(--night)}
+.promo .btn.main:hover{background:#ffe27a}
+.promo svg{width:100%;max-width:300px;height:auto;justify-self:center}
+@media (max-width:820px){.promo{grid-template-columns:minmax(0,1fr)}.promo svg{order:-1;max-width:240px}}
+.more{list-style:none;padding:0 !important;display:grid;gap:10px}
+.more a{display:block;border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-decoration:none;color:var(--ink)}
+.more a:hover{border-color:var(--sign2)}
+.more small{display:block;color:var(--sub);font-size:13.5px}
+.endcta{background:var(--soft);padding:clamp(30px,5vw,56px) 0;text-align:center}
+.endcta h2{display:block}
+.endcta .cta{justify-content:center}
+footer{background:var(--night);color:#cdd8ec;padding:36px 0;font-size:14.5px}
+.foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.foot nav{display:flex;flex-wrap:wrap;gap:4px 18px}
+.foot a{color:#dfe7f6}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="/" aria-label="KMLナビ トップ">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b4aa2"/><path d="M24 54V30h18" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 20l12 10-12 10z" fill="#fff"/></svg>
+      <span>KMLナビ <small>by rigvant</small></span>
+    </a>
+    <nav class="links" aria-label="サイト内">
+      <a class="hide" href="/#how">使い方</a>
+      <a class="hide" href="/create.html">ルート作成</a>
+      <a class="open" href="/app.html">ナビを開く</a>
+    </nav>
+  </div>
+  <div class="wrap head">
+    <ol class="crumb" aria-label="パンくずリスト">
+      <li><a href="/">KMLナビ</a></li>
+      <li aria-current="page">許可経路をナビで走る方法</li>
+    </ol>
+    <h1>特殊車両の許可経路を、ナビで間違えずに走る方法（KMLの作り方）</h1>
+    <p class="lede">特殊車両の通行許可では、通ってよい道が決まっています。このページでは、許可経路を「線（KML）」にして、その線どおりにだけ案内するナビで走る方法を、手順にそって説明します。</p>
+    <p class="meta">2026年11月28日 公開　｜　rigvant</p>
+  </div>
+</header>
+
+<main>
+<article class="wrap art">
+  <nav class="toc" aria-label="目次">
+    <b>このページの内容</b>
+    <ol>
+      <li><a href="#why">普通のカーナビが向かない理由</a></li>
+      <li><a href="#idea">考え方：許可経路を「線」にする</a></li>
+      <li><a href="#step1">手順1：許可証の経路を用意する</a></li>
+      <li><a href="#step2">手順2：線を作る（2つの方法）</a></li>
+      <li><a href="#step3">手順3：曲がる交差点ごとに照らし合わせる</a></li>
+      <li><a href="#step4">手順4：KMLナビで開いて走る</a></li>
+      <li><a href="#caution">注意すること</a></li>
+      <li><a href="#turn">曲がれるか心配な角は</a></li>
+    </ol>
+  </nav>
+
+  <section class="sec" id="why" aria-labelledby="h-why">
+    <h2 id="h-why">普通のカーナビが向かない理由</h2>
+    <p>普通のカーナビは、「早く着く道」を探して案内します。でも、許可経路がいちばん早い道とは限りません。</p>
+    <p>さらに、道を1本まちがえたり、渋滞があったりすると、ナビは自動でルートを引き直します。そのまま従うと、<b>許可されていない道へ案内される</b>おそれがあります。大型車向けの設定があるナビでも、案内するのは「ナビが選んだ道」で、許可証の経路と同じになるとは限りません。</p>
+    <figure>
+      <svg viewBox="0 0 640 270" role="img" aria-label="左：普通のカーナビは、許可経路とは別の速い道へルートを引き直す。右：KMLナビは許可経路の線だけを案内し、外れたら警告する。">
+        <g font-family="BIZ UDPGothic, sans-serif" font-weight="700">
+          <text x="155" y="20" text-anchor="middle" font-size="16" fill="currentColor">普通のカーナビ</text>
+          <text x="485" y="20" text-anchor="middle" font-size="16" fill="currentColor">KMLナビ</text>
+        </g>
+        <g>
+          <rect x="0" y="32" width="310" height="238" rx="14" fill="#e9edf2"/>
+          <g stroke="#fff" stroke-width="16" stroke-linecap="butt"><path d="M0 100H310M0 200H310M80 32V270M230 32V270"/></g>
+          <path d="M80 270V100H310" fill="none" stroke="#1546c8" stroke-width="7" stroke-linejoin="round" stroke-opacity=".35"/>
+          <path d="M80 270V200H230V100H310" fill="none" stroke="#e8710a" stroke-width="7" stroke-linejoin="round" stroke-dasharray="14 8"/>
+          <g transform="translate(155 200)"><circle r="15" fill="#c4161c"/><path d="M-6 -6L6 6M6 -6L-6 6" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/></g>
+          <g font-family="BIZ UDPGothic, sans-serif" font-size="13" font-weight="700">
+            <rect x="96" y="222" width="118" height="26" rx="6" fill="#fff"/>
+            <text x="155" y="240" text-anchor="middle" fill="#8a1d12">許可されていない道</text>
+            <rect x="96" y="48" width="200" height="26" rx="6" fill="#fff"/>
+            <text x="196" y="66" text-anchor="middle" fill="#7a3d00">速い道へ、勝手に引き直す</text>
+          </g>
+          <g transform="translate(80 248)"><circle r="12" fill="#fff" stroke="#111318" stroke-width="2.5"/><path d="M0 -8L6 7L0 3L-6 7Z" fill="#111318"/></g>
+        </g>
+        <g transform="translate(330 0)">
+          <rect x="0" y="32" width="310" height="238" rx="14" fill="#e9edf2"/>
+          <g stroke="#fff" stroke-width="16" stroke-linecap="butt"><path d="M0 100H310M0 200H310M80 32V270M230 32V270"/></g>
+          <path d="M80 270V100H310" fill="none" stroke="#1546c8" stroke-width="9" stroke-linejoin="round"/>
+          <g transform="translate(80 160)"><circle r="12" fill="#fff" stroke="#111318" stroke-width="2.5"/><path d="M0 -8L6 7L0 3L-6 7Z" fill="#111318"/></g>
+          <g font-family="BIZ UDPGothic, sans-serif" font-size="13" font-weight="700">
+            <rect x="110" y="48" width="186" height="26" rx="6" fill="#0b4aa2"/>
+            <text x="203" y="66" text-anchor="middle" fill="#fff">許可経路の線だけを案内</text>
+            <rect x="110" y="222" width="186" height="26" rx="6" fill="#c4161c"/>
+            <text x="203" y="240" text-anchor="middle" fill="#fff">外れたら、すぐ警告</text>
+          </g>
+        </g>
+      </svg>
+      <figcaption>青い線が許可経路。普通のカーナビは「速い道」（オレンジ）を探し直す。KMLナビは、決めた線から外れていないかだけを見張る。</figcaption>
+    </figure>
+  </section>
+
+  <section class="sec" id="idea" aria-labelledby="h-idea">
+    <h2 id="h-idea">考え方：許可経路を「線」にして、その線だけを正解にする</h2>
+    <p>やり方はシンプルです。</p>
+    <ol>
+      <li>許可経路を、地図の上の<b>1本の線（KMLファイル）</b>にする。</li>
+      <li>その線だけを「正解のルート」として案内するナビで走る。</li>
+    </ol>
+    <p><a href="/">KMLナビ</a>は、KMLの線どおりにだけ案内し、案内中にルートを計算し直すことはありません。線から外れると、画面が赤くなり、警告音と声で知らせます。別の道へ連れて行くことはしません。</p>
+    <div class="box"><p>つまり、<b>「どの道を通るか」は人が許可証で決め</b>、ナビは<b>「その道から外れていないか」を見張る</b>役です。</p></div>
+  </section>
+
+  <section class="sec" id="step1" aria-labelledby="h-s1">
+    <h2 id="h-s1"><span class="no">1</span>許可証の経路を手元に用意する</h2>
+    <p>線を作る前に、許可証についている経路の資料を手元に置きます。</p>
+    <ul>
+      <li><b>経路表</b>：通る道路と交差点が、順番に書かれたもの</li>
+      <li><b>経路図</b>：通る道路を、地図に示したもの</li>
+    </ul>
+    <p>出発地から目的地まで、<b>曲がる交差点</b>に印をつけておくと、あとで線と照らし合わせるのが楽になります。行きと帰りで経路が違うときは、KMLも別々に作ります。</p>
+    <p>あわせて、許可の条件（通れる時間帯、誘導車が必要かなど）も確認しておきましょう。条件はナビでは分かりません。</p>
+  </section>
+
+  <section class="sec" id="step2" aria-labelledby="h-s2">
+    <h2 id="h-s2"><span class="no">2</span>線を作る</h2>
+    <p>線の作り方は2つあります。スマホだけで作るなら方法A、パソコンで大きな画面を見ながら作るなら方法Bが向いています。</p>
+
+    <h3>方法A：KMLナビの「ルート作成」で作る（スマホでOK）</h3>
+    <ol>
+      <li><a href="/create.html">ルート作成</a>を開きます。</li>
+      <li>地図をタップして、出発地を置きます。続けて、許可経路の<b>曲がる交差点ごとに</b>点を置き、最後に目的地を置きます。</li>
+      <li>「次の線の引き方」で、<span class="btnl">道なり</span>か<span class="btnl">直線</span>を選びます。
+        <ul>
+          <li><b>道なり</b>は、普通車向けの道順で点と点をつなぎます。許可経路と違う道を通ることがあるので、違ったら「元に戻す」で消して、間に点を足します。</li>
+          <li><b>直線</b>は、点と点をまっすぐつなぎます。道が細かく分かれている所は、直線で道をなぞると確実です。</li>
+        </ul>
+      </li>
+      <li>車の種類を選ぶと、大きく曲がる交差点に「軌跡確認」の印がつきます。曲がれるかを確かめる角の目安になります。</li>
+      <li><span class="btnl">ナビで走る</span>を押すと、そのままナビで開けます（無料）。</li>
+    </ol>
+    <div class="box memo">
+      <p>トラック・トレーラーの大きさ・重さを考えたルート、<b>KMLの保存</b>、<b>人に送る（SMSなど）</b>は「KMLナビ プロ」（月980円・最初の30日間は無料）の機能です。トラック向けのルートを使った場合も、できた線が許可経路と同じかは、手順3で必ず確かめてください。</p>
+    </div>
+
+    <h3>方法B：Googleマイマップで作る（パソコン）</h3>
+    <ol>
+      <li>パソコンでGoogleマイマップを開き、新しい地図を作ります。</li>
+      <li><span class="btnl">ラインを描画</span>から、どちらかで線を引きます。
+        <ul>
+          <li><b>ラインやシェイプを追加</b>：許可経路の道を、曲がり角やカーブごとにクリックしてなぞります。最後の点はダブルクリックで終わります。カーブは細かくクリックするほど、道に沿った線になります。</li>
+          <li><b>車のルートを追加</b>：出発地と目的地を入れると、道なりの線が出ます。線の上の白い点をドラッグして、許可経路に合わせます。</li>
+        </ul>
+      </li>
+      <li>地図の題名の横の <span class="btnl">︙</span> から「KML/KMZ にエクスポート」を選びます。</li>
+      <li>「KMZ ではなく .KML にエクスポート」に<b>チェックを入れて</b>、ダウンロードします。</li>
+      <li>できたKMLを、メールやAirDrop、iCloud Driveなどでスマホに送り、「ファイル」に保存します。</li>
+    </ol>
+    <div class="box memo">
+      <p>KMZ（圧縮した形式）のままだと、KMLナビでは開けません。線はできるだけ1本で引くのが確実です。何本かに分けたときは、走る順に作ってください。</p>
+    </div>
+  </section>
+
+  <section class="sec" id="step3" aria-labelledby="h-s3">
+    <h2 id="h-s3"><span class="no">3</span>線と許可経路を、曲がる交差点ごとに照らし合わせる</h2>
+    <p class="lead">ここがいちばん大事な手順です。ナビは「線から外れていないか」は分かりますが、「線が許可経路どおりか」までは分かりません。</p>
+    <p>経路表を上から順に見ながら、地図を拡大して、線の曲がる場所を1つずつ確かめます。</p>
+    <ul class="check">
+      <li>曲がる交差点の場所と向き（右折・左折）が、経路表と同じか</li>
+      <li>経路表にない道を通っていないか（近道、並んで走る別の道など）</li>
+      <li>高架と下の道、本線と側道を取り違えていないか（地図では重なって見えます）</li>
+      <li>出発地と目的地の、出入りする場所が合っているか</li>
+      <li>曲がれるか心配な角はないか（印をつけて、<a href="#turn">旋回軌跡</a>を確かめる）</li>
+    </ul>
+    <p>線を作った人とは別の人がもう一度見ると、見落としが減ります。</p>
+  </section>
+
+  <section class="sec" id="step4" aria-labelledby="h-s4">
+    <h2 id="h-s4"><span class="no">4</span>KMLナビで開いて走る</h2>
+    <ol>
+      <li><a href="/app.html">ナビを開く</a>で <span class="btnl">KMLファイルを開く</span> を押し、保存したKMLを選びます。地図に線と、曲がり角の数が出ます。</li>
+      <li><b>交差点名と車線のメモ</b>：「曲がり角・交差点名・車線の設定」で、抜けている交差点名を入れたり、車線の数と通る車線（例：3車線の右から1番目）を設定したりします。曲がる手前で、絵と声で教えてくれます。</li>
+      <li><b>デモ走行</b>：<span class="btnl">デモ走行で試す</span>で、ルートの上を自動で走らせます。「次の曲がり角へ」「わざと外れる」で、曲がり角の案内と警告の出方も確かめられます。</li>
+      <li><b>GPSで走る</b>：マナーモードを解除し、充電しながら、ホルダーに固定します。<span class="btnl">GPSで案内を始める</span>を押して位置情報を許可すると、線に乗ったところから案内が始まります。</li>
+    </ol>
+    <p>線から外れると、画面が赤くなり、音と声で知らせます。そのときは安全な場所に止まり、許可証を見て戻り方を確かめてください。</p>
+  </section>
+
+  <section class="sec" id="caution" aria-labelledby="h-c">
+    <div class="caution">
+      <svg viewBox="0 0 56 56" aria-hidden="true"><path d="M28 6 L52 48 H4 Z" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round" style="color:var(--warn)"/><path d="M28 21 V33" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" style="color:var(--warn)"/><circle cx="28" cy="40" r="2.8" fill="currentColor" style="color:var(--warn)"/></svg>
+      <div>
+        <h2 id="h-c">注意すること</h2>
+        <ul>
+          <li>ナビは運転の補助です。通る道は、<b>許可証と現地の標識を優先</b>してください。</li>
+          <li>KMLの線が許可経路どおりかは、線を作る人が確かめてください。</li>
+          <li>工事や通行止めで許可経路を通れないときは、自分の判断で別の道を走らず、運行管理者に連絡して確かめてください。</li>
+          <li>信号と交差点名はOpenStreetMap（誰でも編集できる地図）のデータです。抜けや古い情報があるので、目安にしてください。</li>
+          <li><b>運転中は画面を操作しないでください。</b>確かめるときは、安全な場所に止まってからにしてください。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="turn" aria-labelledby="h-t">
+    <div class="promo">
+      <div>
+        <p class="kick">rigvantの姉妹ツール</p>
+        <h2 id="h-t">曲がれるか心配な角は、走る前に確かめる</h2>
+        <p>許可経路どおりの線ができても、その角を自分の車が曲がれるかは別の問題です。旋回軌跡チェッカーなら、トレーラーやトラックがどこを通るかを図にして、はみ出す場所を前もって確かめられます。</p>
+        <p class="spec">最小回転半径や、ハンドルを切れる角度、後輪のかじ切りの角度は、メーカーや機種によって違います。使う車両の諸元表やカタログ値で必ず確かめてください。</p>
+        <div class="cta"><a class="btn main" href="https://rigvant.com/#turn">旋回軌跡チェッカーを見る</a></div>
+      </div>
+      <svg viewBox="0 0 340 260" aria-hidden="true">
+        <rect x="0" y="0" width="340" height="260" rx="16" fill="#0d1a33"/>
+        <path d="M120 260 V150 Q120 110 160 110 H340" fill="none" stroke="#3a4a66" stroke-width="64"/>
+        <path d="M120 260 V150 Q120 110 160 110 H340" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2" stroke-dasharray="10 10"/>
+        <path d="M96 260 V160 Q96 84 172 80 H340 V140 H186 Q150 140 150 176 V260 Z" fill="#ffd84d" fill-opacity=".14"/>
+        <path d="M96 260 V160 Q96 84 172 80 H340" fill="none" stroke="#ffd84d" stroke-width="3"/>
+        <path d="M150 260 V176 Q150 140 186 140 H340" fill="none" stroke="#ffd84d" stroke-width="3"/>
+        <circle cx="104" cy="104" r="10" fill="#e5322d"/>
+        <path d="M104 98 V106 M104 110 V110.5" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+        <g transform="translate(238 110)">
+          <rect x="-40" y="-13" width="80" height="26" rx="4" fill="#1d5fc4" stroke="#fff" stroke-width="2"/>
+          <rect x="44" y="-11" width="22" height="22" rx="4" fill="#fff"/>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="h-m">
+    <h2 id="h-m">あわせて読む</h2>
+    <ul class="more">
+      <li><a href="https://rigvant.com/guide/naiinsa">トレーラーの内輪差とは？何m内側を通るのか<small>rigvant の解説</small></a></li>
+      <li><a href="https://rigvant.com/guide/kousaten">交差点を曲がれるか、道幅とすみ切りから確かめる方法<small>rigvant の解説</small></a></li>
+      <li><a href="https://rigvant.com/guide/">解説ページの一覧<small>rigvant</small></a></li>
+    </ul>
+  </section>
+</article>
+
+<section class="endcta" aria-labelledby="h-e">
+  <div class="wrap">
+    <h2 id="h-e">まずはデモ走行で試してみてください</h2>
+    <p style="color:var(--sub);margin:0 auto 22px;max-width:36em">KMLを開いて「デモ走行で試す」を押すだけで、案内の出方を確かめられます。登録もインストールもいりません。</p>
+    <div class="cta">
+      <a class="btn main" href="/app.html">無料でナビを開く</a>
+      <a class="btn ghost" href="/create.html">ルートを作る</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>運営：<a href="https://rigvant.com/">rigvant</a><br>重量物の運搬・据付の計画に使う道具</div>
+    <nav aria-label="フッター">
+      <a href="/">KMLナビ トップ</a>
+      <a href="/app.html">ナビを開く</a>
+      <a href="https://rigvant.com/legal/privacy.html">プライバシーポリシー</a>
+      <a href="https://rigvant.com/legal/terms.html">利用規約</a>
+      <a href="https://rigvant.com/">お問い合わせ</a>
+    </nav>
+  </div>
+  <div class="wrap" style="margin-top:18px;font-size:12.5px;color:#8d9bb8">地図：地理院タイル（国土地理院）／ 地図・信号・交差点名：© OpenStreetMap contributors</div>
+</footer>
+</body>
+</html>
