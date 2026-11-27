@@ -43,6 +43,10 @@ select{font:inherit;font-size:16px;min-height:44px;width:100%;margin-top:8px;bor
 .acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 .acts .wide{grid-column:1/-1}
 .dist{font-weight:700;margin:12px 0 0}
+.conf{margin:14px 0 4px;padding:14px;border:3px solid #e8710a;border-radius:14px;background:#fff8f0}
+.conf b{display:block;font-size:18px;line-height:1.4}
+.conf small{display:block;color:var(--sub);font-size:13.5px;margin-top:2px}
+.conf .acts{margin-top:12px}
 .sum{margin:14px 0 10px;padding:12px 14px;border-radius:12px;background:#fff6cc;font-weight:700;font-size:15px}
 .warn{margin-top:18px;border:2px solid #8a1d12;border-radius:12px;padding:12px 14px;font-size:14px}
 .warn b{color:#8a1d12}
@@ -66,6 +70,7 @@ select{font:inherit;font-size:16px;min-height:44px;width:100%;margin-top:8px;bor
   <p class="note">特車の受付システムでダウンロードした許可証データ（lzh）を解凍すると出てくる「.bin」のファイルです。許可が下りた経路と、出発地・目的地の位置が入っています。<br>ファイルはこのスマホの中で読むだけです。位置を探すため、住所・交差点名・座標だけを地図のサービスに送ります（会社名などは送りません）。</p>
 
   <div id="body" hidden>
+    <div class="conf" id="conf" hidden></div>
     <div class="info" id="info"></div>
     <p class="sum" id="sum" hidden></p>
     <div class="acts" style="margin-top:0">
@@ -207,6 +212,7 @@ var TKS = (function () {
     });
     render(); fitAll();
     if (used().length >= 2) draw();   // ファイルに入っている出発地・目的地の座標で、まず線を引いておく
+    confirmStep('to');   // 目的地だけ「ここで合っていますか？」と聞く（出発地は行を押せば直せる）
     lookup(S.req);
   }
 
@@ -240,7 +246,7 @@ var TKS = (function () {
     Promise.all(jobs).then(function () {
       if (req !== S.req) return;
       S.pts.forEach(function (p) { if (p.st === 'wait') p.st = 'miss'; });
-      render(); fitAll(); summary();
+      render(); if (!S.conf) fitAll(); summary();
       draw();
     });
   }
@@ -355,14 +361,41 @@ var TKS = (function () {
   $('list').addEventListener('click', function (e) {
     var u = e.target.closest('[data-use]');
     if (u) { var p = S.pts[+u.getAttribute('data-use')]; p.skip = !p.skip; p.st = p.skip ? 'skip' : (p.pos ? (p.src === 'manual' ? 'manual' : 'ok') : 'miss'); render(); clearLine(); clearTimeout(S.redraw); S.redraw = setTimeout(draw, 700); return; }
-    var r = e.target.closest('.row'); if (r) select(+r.getAttribute('data-i'));
+    var r = e.target.closest('.row'); if (r) { if (S.conf) { S.conf = null; S.fixing = false; $('conf').hidden = true; } select(+r.getAttribute('data-i')); }
   });
   $('list').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var r = e.target.closest('.row'); if (r) select(+r.getAttribute('data-i')); } });
+  // 出発地・目的地の確認：「ここで合っていますか？」→ 違うなら地図をタップして直す
+  function confirmStep(k) {
+    S.conf = k; S.fixing = false;
+    var i = k === 'from' ? 0 : S.pts.length - 1, p = S.pts[i], nm = k === 'from' ? '出発地' : '目的地';
+    S.sel = i; render();
+    if (!p.pos) { fixStep(); return; }
+    map.setView(p.pos, 17);
+    $('conf').innerHTML = '<b>' + nm + 'はここで合っていますか？</b><small>' + esc(p.addr || '') + '</small><small>車が道に出入りする場所（門・出入口）になっているか、地図の ' + (i + 1) + ' 番の点を見てください。</small>'
+      + '<div class="acts"><button class="btn" id="cOk">合っている</button><button class="btn sub" id="cNg">違う（直す）</button></div>';
+    $('conf').hidden = false;
+    $('cOk').onclick = endConf;
+    $('cNg').onclick = fixStep;
+  }
+  function fixStep() {
+    S.fixing = true;
+    var nm = S.conf === 'from' ? '出発地' : '目的地';
+    $('conf').innerHTML = '<b>正しい' + nm + 'の場所を、地図でタップしてください</b><small>地図は指で動かしたり、拡大したりできます。</small><div class="acts"><button class="btn sub wide" id="cBack">戻る</button></div>';
+    $('conf').hidden = false;
+    $('cBack').onclick = function () { confirmStep(S.conf); };
+  }
+  function endConf() {
+    S.conf = null; S.fixing = false; S.sel = -1;
+    $('conf').hidden = true; render(); fitAll();
+    if (!S.line && used().length >= 2) draw();
+  }
   map.on('click', function (e) {
+    if (S.conf && !S.fixing) return;   // 確認中は「違う」を押したときだけ動かす
     var p = S.pts[S.sel]; if (!p) return;
     p.pos = [e.latlng.lat, e.latlng.lng]; p.st = 'manual'; p.src = 'manual'; p.skip = false;
     render(); clearLine(); summary();
     clearTimeout(S.redraw); S.redraw = setTimeout(draw, 700);
+    if (S.conf) confirmStep(S.conf);   // 直した場所で、もう一度「ここで合っていますか？」
   });
 
   function clearLine() {
@@ -391,7 +424,7 @@ var TKS = (function () {
     S.line = L.polyline(coords, { color: '#1546c8', weight: 6, opacity: .85 }).addTo(map);
     $('nav').disabled = $('save').disabled = false;
     if (m) { $('dist').textContent = '線の長さ：約 ' + (m / 1000).toFixed(1) + ' km'; $('dist').hidden = false; }
-    fitAll();
+    if (!S.conf) fitAll();
   }
   $('draw').addEventListener('click', draw);
 
